@@ -750,22 +750,38 @@ export default function GamePage() {
                   </Dialog>
                 </div>
 
+                {!currentParticipant && (
+                  <div className="mb-4 p-4 border-2 border-primary/50 rounded-lg bg-primary/5 text-center">
+                    <h3 className="text-lg font-semibold text-primary mb-2">Select a Player to Start Bidding</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Click on a player's name below to start playing as them and place bids on items
+                    </p>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <div className="text-sm font-medium text-muted-foreground mb-2">
-                    Click on a player's name to play as them
+                    {currentParticipant ? (
+                      <div className="flex items-center gap-2">
+                        <span>Currently playing as:</span>
+                        <span className="font-semibold text-primary">{currentParticipant.name}</span>
+                      </div>
+                    ) : (
+                      "Select a player to start bidding"
+                    )}
                   </div>
                   <div className="space-y-1">
                     {participants?.map((participant) => (
                       <Button
                         key={participant.id}
-                        variant={currentParticipant?.id === participant.id ? "secondary" : "ghost"}
-                        className="w-full justify-start h-9 px-3"
+                        variant={currentParticipant?.id === participant.id ? "default" : "ghost"}
+                        className={`w-full justify-start h-9 px-3 ${currentParticipant?.id === participant.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
                         onClick={() => setCurrentParticipant(participant)}
                       >
                         <span className="truncate">
                           {participant.name}
                           {currentParticipant?.id === participant.id && (
-                            <span className="ml-2 text-xs text-muted-foreground">(Playing as)</span>
+                            <span className="ml-2 text-xs opacity-90">(Currently Playing)</span>
                           )}
                         </span>
                       </Button>
@@ -774,6 +790,16 @@ export default function GamePage() {
                 </div>
               </CardContent>
             </Card>
+
+            {!currentParticipant && (
+              <div className="rounded-lg bg-card border-2 border-primary/20 p-8 text-center mb-8">
+                <Users2 className="h-12 w-12 text-primary mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-foreground mb-2">Select a Player to View and Place Bids</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  You need to select a player from the list above before you can view and place bids on items
+                </p>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
               {items.map((item) => {
