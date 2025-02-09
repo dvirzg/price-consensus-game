@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGameSchema, insertItemSchema, insertParticipantSchema } from "@shared/schema";
+import { insertGameSchema, insertItemSchema, insertParticipantSchema, insertItemAssignmentSchema } from "@shared/schema";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 
@@ -118,6 +118,54 @@ export function registerRoutes(app: Express): Server {
     } catch (err) {
       console.error("Failed to get participants:", err);
       res.status(500).json({ message: "Failed to get participants" });
+    }
+  });
+
+  app.post("/api/games/:id/assignments", async (req, res) => {
+    try {
+      const assignment = insertItemAssignmentSchema.parse(req.body);
+      const created = await storage.createItemAssignment(assignment);
+      res.json(created);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        const validationError = fromZodError(err);
+        res.status(400).json({ message: validationError.message });
+      } else {
+        console.error("Failed to create assignment:", err);
+        res.status(500).json({ message: "Failed to create assignment" });
+      }
+    }
+  });
+
+  app.get("/api/games/:id/assignments", async (req, res) => {
+    try {
+      const gameId = Number(req.params.id);
+      if (isNaN(gameId)) {
+        res.status(400).json({ message: "Invalid game ID" });
+        return;
+      }
+
+      const assignments = await storage.getItemAssignments(gameId);
+      res.json(assignments);
+    } catch (err) {
+      console.error("Failed to get assignments:", err);
+      res.status(500).json({ message: "Failed to get assignments" });
+    }
+  });
+
+  app.delete("/api/assignments/:id", async (req, res) => {
+    try {
+      const assignmentId = Number(req.params.id);
+      if (isNaN(assignmentId)) {
+        res.status(400).json({ message: "Invalid assignment ID" });
+        return;
+      }
+
+      await storage.removeItemAssignment(assignmentId);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Failed to remove assignment:", err);
+      res.status(500).json({ message: "Failed to remove assignment" });
     }
   });
 

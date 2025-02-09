@@ -1,4 +1,4 @@
-import { Game, InsertGame, Item, InsertItem, Participant, InsertParticipant } from "@shared/schema";
+import { Game, InsertGame, Item, InsertItem, Participant, InsertParticipant, ItemAssignment, InsertItemAssignment } from "@shared/schema";
 
 export interface IStorage {
   createGame(game: InsertGame): Promise<Game>;
@@ -12,23 +12,31 @@ export interface IStorage {
 
   createParticipant(gameId: number, participant: InsertParticipant): Promise<Participant>;
   getGameParticipants(gameId: number): Promise<Participant[]>;
+
+  createItemAssignment(assignment: InsertItemAssignment): Promise<ItemAssignment>;
+  getItemAssignments(gameId: number): Promise<ItemAssignment[]>;
+  removeItemAssignment(assignmentId: number): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
   private games: Map<number, Game>;
   private items: Map<number, Item>;
   private participants: Map<number, Participant>;
+  private itemAssignments: Map<number, ItemAssignment>;
   private currentGameId: number;
   private currentItemId: number;
   private currentParticipantId: number;
+  private currentAssignmentId: number;
 
   constructor() {
     this.games = new Map();
     this.items = new Map();
     this.participants = new Map();
+    this.itemAssignments = new Map();
     this.currentGameId = 1;
     this.currentItemId = 1;
     this.currentParticipantId = 1;
+    this.currentAssignmentId = 1;
   }
 
   async createGame(game: InsertGame): Promise<Game> {
@@ -36,7 +44,7 @@ export class MemStorage implements IStorage {
     const newGame: Game = {
       ...game,
       id,
-      totalPrice: game.totalPrice.toString(), // Convert to string for decimal storage
+      totalPrice: game.totalPrice.toString(),
       createdAt: new Date(),
       lastActive: new Date(),
       status: "active",
@@ -69,7 +77,7 @@ export class MemStorage implements IStorage {
       ...item,
       id,
       gameId,
-      currentPrice: item.currentPrice.toString(), // Convert to string for decimal storage
+      currentPrice: item.currentPrice.toString(),
     };
     this.items.set(id, newItem);
     return newItem;
@@ -82,7 +90,7 @@ export class MemStorage implements IStorage {
   async updateItemPrice(id: number, price: number): Promise<void> {
     const item = this.items.get(id);
     if (item) {
-      this.items.set(id, { ...item, currentPrice: price.toString() }); // Convert to string for decimal storage
+      this.items.set(id, { ...item, currentPrice: price.toString() });
     }
   }
 
@@ -92,7 +100,7 @@ export class MemStorage implements IStorage {
       ...participant,
       id,
       gameId,
-      email: participant.email || null, // Ensure email is never undefined
+      email: participant.email || null,
     };
     this.participants.set(id, newParticipant);
     return newParticipant;
@@ -100,6 +108,25 @@ export class MemStorage implements IStorage {
 
   async getGameParticipants(gameId: number): Promise<Participant[]> {
     return Array.from(this.participants.values()).filter(p => p.gameId === gameId);
+  }
+
+  async createItemAssignment(assignment: InsertItemAssignment): Promise<ItemAssignment> {
+    const id = this.currentAssignmentId++;
+    const newAssignment: ItemAssignment = {
+      ...assignment,
+      id,
+      assignedAt: new Date(),
+    };
+    this.itemAssignments.set(id, newAssignment);
+    return newAssignment;
+  }
+
+  async getItemAssignments(gameId: number): Promise<ItemAssignment[]> {
+    return Array.from(this.itemAssignments.values()).filter(a => a.gameId === gameId);
+  }
+
+  async removeItemAssignment(assignmentId: number): Promise<void> {
+    this.itemAssignments.delete(assignmentId);
   }
 }
 

@@ -26,6 +26,14 @@ export const participants = pgTable("participants", {
   email: text("email"),
 });
 
+export const itemAssignments = pgTable("item_assignments", {
+  id: serial("id").primaryKey(),
+  itemId: integer("item_id").references(() => items.id).notNull(),
+  participantId: integer("participant_id").references(() => participants.id).notNull(),
+  gameId: integer("game_id").references(() => games.id).notNull(),
+  assignedAt: timestamp("assigned_at").defaultNow().notNull(),
+});
+
 export const insertGameSchema = createInsertSchema(games).extend({
   totalPrice: z.number().min(0.01, "Total price must be greater than 0"),
 }).omit({ 
@@ -47,9 +55,16 @@ export const insertParticipantSchema = createInsertSchema(participants).omit({
   gameId: true 
 });
 
+export const insertItemAssignmentSchema = createInsertSchema(itemAssignments).omit({
+  id: true,
+  assignedAt: true,
+});
+
 export type Game = typeof games.$inferSelect;
 export type InsertGame = z.infer<typeof insertGameSchema>;
 export type Item = typeof items.$inferSelect;
 export type InsertItem = z.infer<typeof insertItemSchema>;
 export type Participant = typeof participants.$inferSelect;
 export type InsertParticipant = z.infer<typeof insertParticipantSchema>;
+export type ItemAssignment = typeof itemAssignments.$inferSelect;
+export type InsertItemAssignment = z.infer<typeof insertItemAssignmentSchema>;
