@@ -556,49 +556,26 @@ export default function GamePage() {
               </Dialog>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium mb-2 block">
-                  Playing as
-                </label>
-                <Select
-                  value={currentParticipant?.id?.toString() || ""}
-                  onValueChange={(value) => {
-                    const participant = participants?.find(p => p.id === parseInt(value));
-                    if (participant) {
-                      setCurrentParticipant(participant);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select player" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {participants?.map((participant) => (
-                      <SelectItem 
-                        key={participant.id} 
-                        value={participant.id.toString()}
-                      >
-                        {participant.name || "Unknown Player"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-muted-foreground mb-2">
+                Click on a player's name to play as them
               </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">
-                  Other Players
-                </label>
-                <div className="text-sm space-y-1 border rounded-md p-2 min-h-[38px]">
-                  {participants
-                    ?.filter(p => p.id !== currentParticipant?.id)
-                    .map((participant) => (
-                      <div key={participant.id} className="flex items-center gap-2 p-1">
-                        <span className="truncate">{participant.name || "Unknown Player"}</span>
-                      </div>
-                    ))}
-                </div>
+              <div className="space-y-1">
+                {participants?.map((participant) => (
+                  <Button
+                    key={participant.id}
+                    variant={currentParticipant?.id === participant.id ? "secondary" : "ghost"}
+                    className="w-full justify-start h-9 px-3"
+                    onClick={() => setCurrentParticipant(participant)}
+                  >
+                    <span className="truncate">
+                      {participant.name}
+                      {currentParticipant?.id === participant.id && (
+                        <span className="ml-2 text-xs text-muted-foreground">(Playing as)</span>
+                      )}
+                    </span>
+                  </Button>
+                ))}
               </div>
             </div>
           </CardContent>
