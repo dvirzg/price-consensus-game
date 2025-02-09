@@ -21,6 +21,12 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
+interface PriceAgreement {
+  itemId: number;
+  participantId: number;
+  agreedPrice: number;
+}
+
 export default function GamePage() {
   const { id } = useParams();
   const { toast } = useToast();
@@ -30,6 +36,7 @@ export default function GamePage() {
   const [previewPrices, setPreviewPrices] = useState<{ [key: number]: number }>({});
   const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
+  const [priceAgreements, setPriceAgreements] = useState<PriceAgreement[]>([]);
 
   const { data: game, error: gameError } = useQuery<Game>({
     queryKey: [`/api/games/${id}`],
@@ -91,6 +98,27 @@ export default function GamePage() {
     },
   });
 
+  const agreeToPrices = useMutation({
+    mutationFn: async () => {
+      // Record agreement for all current prices for the current participant
+      const agreements = items?.map(item => ({
+        itemId: item.id,
+        participantId: currentParticipant!.id,
+        agreedPrice: Number(item.currentPrice)
+      }));
+      
+      // In a real app, you'd want to store these agreements in the backend
+      setPriceAgreements(prev => {
+        // Remove previous agreements by this participant
+        const filtered = prev.filter(a => a.participantId !== currentParticipant!.id);
+        return [...filtered, ...(agreements || [])];
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "You have agreed to the current prices" });
+    }
+  });
+
   const calculatePriceChanges = (itemId: number, newPrice: number) => {
     if (!items) return;
     
@@ -114,9 +142,9 @@ export default function GamePage() {
     setPreviewPrices(newPrices);
   };
 
-  // Calculate if the game is resolved (all items have highest bidders and total price matches)
+  // Calculate if the game is resolved (all players have agreed to current prices)
   const isGameResolved = useMemo(() => {
-    if (!items || !participants || !assignments) return false;
+    if (!items || !participants || !assignments || !priceAgreements) return false;
     
     // Check if all items have assignments
     const allItemsAssigned = items.every(item => 
@@ -127,8 +155,31 @@ export default function GamePage() {
     const totalBidPrice = items.reduce((sum, item) => sum + Number(item.currentPrice), 0);
     const priceMatches = Math.abs(totalBidPrice - Number(game?.totalPrice)) < 0.01;
 
-    return allItemsAssigned && priceMatches;
-  }, [items, participants, assignments, game]);
+    // Check if all participants have agreed to current prices
+    const allPricesAgreed = participants.every(participant => {
+      const participantAgreements = priceAgreements.filter(a => a.participantId === participant.id);
+      return items.every(item => {
+        const agreement = participantAgreements.find(a => a.itemId === item.id);
+        return agreement && agreement.agreedPrice === Number(item.currentPrice);
+      });
+    });
+
+    return allItemsAssigned && priceMatches && allPricesAgreed;
+  }, [items, participants, assignments, game, priceAgreements]);
+
+  // Get if current participant has agreed to current prices
+  const hasAgreedToPrices = useMemo(() => {
+    if (!currentParticipant || !items) return false;
+
+    const participantAgreements = priceAgreements.filter(
+      a => a.participantId === currentParticipant.id
+    );
+
+    return items.every(item => {
+      const agreement = participantAgreements.find(a => a.itemId === item.id);
+      return agreement && agreement.agreedPrice === Number(item.currentPrice);
+    });
+  }, [currentParticipant, items, priceAgreements]);
 
   // Get all bids for an item
   const getItemBids = (itemId: number): { userId: number; userName: string; price: number }[] => {
@@ -293,17 +344,55 @@ export default function GamePage() {
             </div>
 
             {!isGameResolved && (
-              <div className="mt-4">
-                <div className="flex justify-between text-sm mb-2">
-                  <span>Progress to resolution</span>
-                  <span className="text-muted-foreground">
-                    {assignments?.length || 0} of {items?.length || 0} items assigned
-                  </span>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span>Progress to resolution</span>
+                    <span className="text-muted-foreground">
+                      {assignments?.length || 0} of {items?.length || 0} items assigned
+                    </span>
+                  </div>
+                  <Progress 
+                    value={((assignments?.length || 0) / (items?.length || 1)) * 100} 
+                    className="h-2"
+                  />
                 </div>
-                <Progress 
-                  value={((assignments?.length || 0) / (items?.length || 1)) * 100} 
-                  className="h-2"
-                />
+
+                <div className="flex items-center justify-between">
+                  <div className="text-sm">
+                    Players who agreed to current prices:
+                    <div className="text-muted-foreground">
+                      {participants?.map(p => (
+                        <div key={p.id} className="flex items-center gap-2">
+                          <span>{p.name}:</span>
+                          {priceAgreements.some(a => 
+                            a.participantId === p.id && 
+                            items?.every(item => 
+                              priceAgreements.find(agreement => 
+                                agreement.participantId === p.id && 
+                                agreement.itemId === item.id && 
+                                agreement.agreedPrice === Number(item.currentPrice)
+                              )
+                            )
+                          ) ? (
+                            <span className="text-green-600">✓ Agreed</span>
+                          ) : (
+                            <span className="text-yellow-600">Pending</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {currentParticipant && !hasAgreedToPrices && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => agreeToPrices.mutate()}
+                    >
+                      Agree to Current Prices
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
           </CardContent>
