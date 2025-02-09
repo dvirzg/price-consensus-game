@@ -160,7 +160,7 @@ export default function GamePage() {
         } else {
           // If no existing interest, create a new one
           newInterests.push({
-            itemId,
+        itemId,
             participantId: currentParticipant.id,
             price: Number(item.currentPrice),
             timestamp: Date.now(),
@@ -388,11 +388,11 @@ export default function GamePage() {
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto space-y-4">
         <div className="flex justify-between items-center">
-          <Link href="/">
-            <Button variant="ghost">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back
-            </Button>
-          </Link>
+        <Link href="/">
+          <Button variant="ghost">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back
+          </Button>
+        </Link>
           <Button
             variant="ghost"
             size="sm"
@@ -428,21 +428,90 @@ export default function GamePage() {
                   <Clock className="h-4 w-4 mr-1" />
                   Last active {timeUntilExpiry}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(gameLink);
-                    toast({ description: "Link copied to clipboard" });
-                  }}
-                >
-                  <LinkIcon className="h-4 w-4 mr-2" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(gameLink);
+                  toast({ description: "Link copied to clipboard" });
+                }}
+              >
+                <LinkIcon className="h-4 w-4 mr-2" />
                   Share Game
                 </Button>
               </div>
             </div>
 
-            {!isGameResolved && (
+            {isGameResolved ? (
+              <div className="mt-4">
+                <div className="text-center mb-6">
+                  <h2 className="text-xl font-semibold mb-2">Final Results</h2>
+                  <p className="text-muted-foreground">
+                    All items have been successfully assigned!
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {items.map(item => {
+                    const assignedTo = itemInterests.find(interest => 
+                      interest.itemId === item.id && 
+                      !interest.needsConfirmation &&
+                      Math.abs(Number(item.currentPrice) - interest.price) < 0.01
+                    );
+
+                    if (!assignedTo) return null;
+
+                    const participantName = getParticipantName(assignedTo.participantId);
+
+                    return (
+                      <Card key={item.id} className="overflow-hidden">
+                        <div className="relative aspect-square">
+                          <img
+                            src={item.imageData}
+                            alt={item.title}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-4">
+                            <div className="text-white">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-semibold text-base">{participantName}</span>
+                                <span className="text-white/80">•</span>
+                                <span className="font-medium">${Number(item.currentPrice).toFixed(2)}</span>
+                              </div>
+                              <h4 className="text-sm text-white/90 truncate">{item.title}</h4>
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  {participants?.map(participant => {
+                    const totalSpent = items
+                      .filter(item => 
+                        itemInterests.some(interest => 
+                          interest.itemId === item.id && 
+                          interest.participantId === participant.id &&
+                          !interest.needsConfirmation &&
+                          Math.abs(Number(item.currentPrice) - interest.price) < 0.01
+                        )
+                      )
+                      .reduce((sum, item) => sum + Number(item.currentPrice), 0);
+
+                    if (totalSpent === 0) return null;
+
+                    return (
+                      <div key={participant.id} className="flex justify-between items-center px-4 py-2 bg-white rounded-lg shadow-sm">
+                        <span className="font-medium">{participant.name}</span>
+                        <span className="text-muted-foreground">Total: ${totalSpent.toFixed(2)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
               <div className="mt-4 space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-2">
@@ -474,7 +543,7 @@ export default function GamePage() {
                   <div className="text-muted-foreground">
                     {items?.map(item => (
                       <div key={item.id} className="flex items-center justify-between">
-                        <span>{item.title}:</span>
+                        <span className="truncate">{item.title}:</span>
                         <div className="flex items-center gap-2">
                           {itemInterests
                             .filter(interest => 
@@ -503,175 +572,179 @@ export default function GamePage() {
           </CardContent>
         </Card>
 
-        <Card className="mb-4">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Users2 className="h-5 w-5" />
-                <h2 className="text-lg font-medium">Players</h2>
-              </div>
-              <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Add Player
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New Player</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <Input
-                      placeholder="Player Name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                    />
-                    <Input
-                      placeholder="Email (optional)"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                    <Button
-                      className="w-full"
-                      onClick={() => joinGame.mutate()}
-                      disabled={!name}
-                    >
-                      Add Player
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-muted-foreground mb-2">
-                Click on a player's name to play as them
-              </div>
-              <div className="space-y-1">
-                {participants?.map((participant) => (
-                  <Button
-                    key={participant.id}
-                    variant={currentParticipant?.id === participant.id ? "secondary" : "ghost"}
-                    className="w-full justify-start h-9 px-3"
-                    onClick={() => setCurrentParticipant(participant)}
-                  >
-                    <span className="truncate">
-                      {participant.name}
-                      {currentParticipant?.id === participant.id && (
-                        <span className="ml-2 text-xs text-muted-foreground">(Playing as)</span>
-                      )}
-                    </span>
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((item) => {
-            const itemBids = getItemBids(item.id);
-            const currentUserBid = currentParticipant ? 
-              itemInterests.find(interest => 
-                interest.itemId === item.id && 
-                interest.participantId === currentParticipant.id
-              ) || null : null;
-            const highestBid = itemBids.reduce((highest, current) => 
-              !highest || current.price > highest.price ? current : highest
-            , null as { userId: number; userName: string; price: number; needsConfirmation: boolean } | null);
-
-            return (
-              <div key={item.id}>
-                <ItemCard
-                  item={item}
-                  items={items}
-                  onPriceChange={(price) => {
-                    if (editingItemId === item.id) {
-                      calculatePriceChanges(item.id, price);
-                    } else {
-                      // This is a confirmation of new price
-                      confirmInterest.mutate({ itemId: item.id });
-                    }
-                  }}
-                  isEditing={editingItemId === item.id}
-                  onStartEdit={() => {
-                    if (!currentParticipant) {
-                      toast({
-                        title: "Error",
-                        description: "You must join the game to place bids",
-                        variant: "destructive"
-                      });
-                      return;
-                    }
-                    setEditingItemId(item.id);
-                    setPreviewPrices({});
-                  }}
-                  onCancelEdit={() => {
-                    setEditingItemId(null);
-                    setPreviewPrices({});
-                  }}
-                  previewPrices={previewPrices}
-                  currentUser={currentParticipant ? {
-                    id: currentParticipant.id,
-                    name: currentParticipant.name
-                  } : { id: 0, name: "" }}
-                  bids={itemBids}
-                  currentUserBid={currentUserBid}
-                  highestBid={highestBid}
-                />
-              </div>
-            );
-          })}
-        </div>
-
-        {Object.keys(previewPrices).length > 0 && (
-          <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2">
-            <Card className="shadow-lg">
+        {!isGameResolved && (
+          <>
+            <Card className="mb-4">
               <CardContent className="p-4">
-                <div className="flex gap-4">
-                  <Button
-                    onClick={async () => {
-                      if (!editingItemId) return;
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Users2 className="h-5 w-5" />
+                    <h2 className="text-lg font-medium">Players</h2>
+                  </div>
+                  <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Add Player
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add New Player</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <Input
+                          placeholder="Player Name"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                        />
+                        <Input
+                          placeholder="Email (optional)"
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                        />
+                        <Button
+                          className="w-full"
+                          onClick={() => joinGame.mutate()}
+                          disabled={!name}
+                        >
+                          Add Player
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
 
-                      // Update the main bid item first
-                      const mainBidPrice = previewPrices[editingItemId];
-                      await updatePrice.mutate({ 
-                        itemId: editingItemId, 
-                        price: mainBidPrice,
-                        isMainBid: true
-                      });
-
-                      // Then update other items' prices without creating interests
-                      const otherUpdates = Object.entries(previewPrices)
-                        .filter(([itemId]) => parseInt(itemId) !== editingItemId)
-                        .map(([itemId, price]) => ({
-                          itemId: parseInt(itemId),
-                          price,
-                          isMainBid: false
-                        }));
-
-                      for (const update of otherUpdates) {
-                        await updatePrice.mutate(update);
-                      }
-                    }}
-                  >
-                    Confirm Bid
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setEditingItemId(null);
-                      setPreviewPrices({});
-                    }}
-                  >
-                    Cancel
-                  </Button>
+                <div className="space-y-2">
+                  <div className="text-sm font-medium text-muted-foreground mb-2">
+                    Click on a player's name to play as them
+                  </div>
+                  <div className="space-y-1">
+                    {participants?.map((participant) => (
+                      <Button
+                        key={participant.id}
+                        variant={currentParticipant?.id === participant.id ? "secondary" : "ghost"}
+                        className="w-full justify-start h-9 px-3"
+                        onClick={() => setCurrentParticipant(participant)}
+                      >
+                        <span className="truncate">
+                          {participant.name}
+                          {currentParticipant?.id === participant.id && (
+                            <span className="ml-2 text-xs text-muted-foreground">(Playing as)</span>
+                          )}
+                        </span>
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
-          </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {items.map((item) => {
+                const itemBids = getItemBids(item.id);
+                const currentUserBid = currentParticipant ? 
+                  itemInterests.find(interest => 
+                    interest.itemId === item.id && 
+                    interest.participantId === currentParticipant.id
+                  ) || null : null;
+                const highestBid = itemBids.reduce((highest, current) => 
+                  !highest || current.price > highest.price ? current : highest
+                , null as { userId: number; userName: string; price: number; needsConfirmation: boolean } | null);
+
+                return (
+                  <div key={item.id}>
+                  <ItemCard
+                    item={item}
+                    items={items}
+                    onPriceChange={(price) => {
+                        if (editingItemId === item.id) {
+                          calculatePriceChanges(item.id, price);
+                        } else {
+                          // This is a confirmation of new price
+                          confirmInterest.mutate({ itemId: item.id });
+                        }
+                    }}
+                    isEditing={editingItemId === item.id}
+                      onStartEdit={() => {
+                        if (!currentParticipant) {
+                          toast({
+                            title: "Error",
+                            description: "You must join the game to place bids",
+                            variant: "destructive"
+                          });
+                          return;
+                        }
+                        setEditingItemId(item.id);
+                        setPreviewPrices({});
+                      }}
+                      onCancelEdit={() => {
+                        setEditingItemId(null);
+                        setPreviewPrices({});
+                      }}
+                      previewPrices={previewPrices}
+                      currentUser={currentParticipant ? {
+                        id: currentParticipant.id,
+                        name: currentParticipant.name
+                      } : { id: 0, name: "" }}
+                      bids={itemBids}
+                      currentUserBid={currentUserBid}
+                      highestBid={highestBid}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            {Object.keys(previewPrices).length > 0 && (
+              <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2">
+                <Card className="shadow-lg">
+                  <CardContent className="p-4">
+                    <div className="flex gap-4">
+                      <Button
+                        onClick={async () => {
+                          if (!editingItemId) return;
+
+                          // Update the main bid item first
+                          const mainBidPrice = previewPrices[editingItemId];
+                          await updatePrice.mutate({ 
+                            itemId: editingItemId, 
+                            price: mainBidPrice,
+                            isMainBid: true
+                          });
+
+                          // Then update other items' prices without creating interests
+                          const otherUpdates = Object.entries(previewPrices)
+                            .filter(([itemId]) => parseInt(itemId) !== editingItemId)
+                            .map(([itemId, price]) => ({
+                              itemId: parseInt(itemId),
+                              price,
+                              isMainBid: false
+                            }));
+
+                          for (const update of otherUpdates) {
+                            await updatePrice.mutate(update);
+                          }
+                        }}
+                      >
+                        Confirm Bid
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEditingItemId(null);
+                          setPreviewPrices({});
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </>
         )}
 
         {/* Add Reset Game section at the bottom */}
@@ -696,9 +769,9 @@ export default function GamePage() {
                 >
                   Reset Game
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
         )}
       </div>
     </div>
