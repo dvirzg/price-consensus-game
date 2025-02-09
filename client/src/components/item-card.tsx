@@ -14,9 +14,11 @@ interface ItemCardProps {
   isEditing: boolean;
   onStartEdit: () => void;
   onCancelEdit: () => void;
-  previewPrices?: { [key: number]: number };
+  previewPrices: { [key: number]: number };
   currentUser: { id: number; name: string };
-  bids: { userId: number; userName: string; price: number }[];
+  bids: { userId: number; userName: string; price: number; needsConfirmation: boolean }[];
+  currentUserBid: { itemId: number; participantId: number; price: number; timestamp: number; needsConfirmation: boolean } | null;
+  highestBid: { userId: number; userName: string; price: number; needsConfirmation: boolean } | null;
 }
 
 export default function ItemCard({
@@ -28,7 +30,9 @@ export default function ItemCard({
   onCancelEdit,
   previewPrices,
   currentUser,
-  bids
+  bids,
+  currentUserBid,
+  highestBid
 }: ItemCardProps) {
   const [localPreviewPrice, setLocalPreviewPrice] = useState<number>(Number(item.currentPrice));
   const [manualPrice, setManualPrice] = useState<string>("");
@@ -42,9 +46,6 @@ export default function ItemCard({
 
   // Sort bids by price in descending order
   const sortedBids = [...bids].sort((a, b) => b.price - a.price);
-  const highestBid = sortedBids[0];
-  const isCurrentUserHighestBidder = highestBid?.userId === currentUser.id;
-  const currentUserBid = bids.find(bid => bid.userId === currentUser.id);
 
   const handlePriceStep = (step: number) => {
     const newPrice = Number(item.currentPrice) + step;
@@ -65,7 +66,7 @@ export default function ItemCard({
 
   return (
     <>
-      <Card className={`transition-all duration-200 ${isPriceChanged ? 'ring-2 ring-primary' : ''} ${isCurrentUserHighestBidder ? 'bg-green-50' : ''}`}>
+      <Card className={`transition-all duration-200 ${isPriceChanged ? 'ring-2 ring-primary' : ''} ${highestBid?.userId === currentUser.id ? 'bg-green-50' : ''}`}>
         <CardContent className="p-3">
           <div className="flex gap-3">
             <div 
@@ -107,8 +108,8 @@ export default function ItemCard({
                   )}
                 </div>
                 {highestBid && (
-                  <div className={`flex items-center gap-1 text-sm ${isCurrentUserHighestBidder ? 'text-green-600' : 'text-muted-foreground'}`}>
-                    {isCurrentUserHighestBidder && <Crown className="h-3 w-3" />}
+                  <div className={`flex items-center gap-1 text-sm ${highestBid.userId === currentUser.id ? 'text-green-600' : 'text-muted-foreground'}`}>
+                    {highestBid.userId === currentUser.id && <Crown className="h-3 w-3" />}
                     <span className="truncate">{highestBid.userName}</span>
                   </div>
                 )}
@@ -187,6 +188,30 @@ export default function ItemCard({
                 >
                   {currentUserBid ? 'Update Bid' : 'Place Bid'}
                 </Button>
+              )}
+              {!isEditing && currentUserBid && Number(item.currentPrice) !== currentUserBid.price && (
+                <div className="mt-2">
+                  <div className="text-sm text-muted-foreground mb-1">
+                    Your previous bid: ${currentUserBid.price.toFixed(2)}
+                    <br />
+                    New price: ${Number(item.currentPrice).toFixed(2)}
+                    <span className={Number(item.currentPrice) > currentUserBid.price ? "text-red-500" : "text-green-500"}>
+                      {" "}({Number(item.currentPrice) > currentUserBid.price ? "+" : ""}
+                      ${(Number(item.currentPrice) - currentUserBid.price).toFixed(2)})
+                    </span>
+                  </div>
+                  {/* Only show confirm button if no one else has bid higher */}
+                  {(!highestBid || highestBid.userId === currentUser.id) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => onPriceChange(Number(item.currentPrice))}
+                    >
+                      Confirm New Price
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           </div>

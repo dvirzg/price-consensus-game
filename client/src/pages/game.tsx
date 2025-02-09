@@ -82,16 +82,14 @@ export default function GamePage() {
   });
 
   const updatePrice = useMutation({
-    mutationFn: async ({ itemId, price }: { itemId: number; price: number }) => {
+    mutationFn: async ({ itemId, price, isMainBid = false }: { itemId: number; price: number; isMainBid?: boolean }) => {
       await apiRequest("PATCH", `/api/items/${itemId}/price`, { price });
       
-      if (currentParticipant) {
+      if (currentParticipant && isMainBid) {  // Only update interests for the main bid
         setItemInterests(prev => {
-          const newInterests = [...prev];
-          
-          // 1. Remove any previous interest by this participant for this specific item
-          const filteredInterests = newInterests.filter(interest => 
-            !(interest.itemId === itemId && interest.participantId === currentParticipant.id)
+          // 1. Remove ALL previous interests by this participant
+          const filteredInterests = prev.filter(interest => 
+            interest.participantId !== currentParticipant.id
           );
           
           // 2. Add new confirmed interest ONLY for the item being bid on
@@ -108,8 +106,8 @@ export default function GamePage() {
             const numericItemId = parseInt(affectedItemId);
             if (numericItemId !== itemId) {  // Skip the item being bid on
               filteredInterests.forEach((interest, index) => {
-                if (interest.itemId === numericItemId && interest.participantId !== currentParticipant.id) {
-                  // Only update other players' interests
+                if (interest.itemId === numericItemId) {
+                  // Only update other players' interests if price increased
                   const needsNewConfirmation = newPrice > interest.price;
                   filteredInterests[index] = {
                     ...interest,
@@ -489,15 +487,6 @@ export default function GamePage() {
                                 {interest.needsConfirmation && (
                                   <span className="text-yellow-500">(needs confirmation)</span>
                                 )}
-                                {interest.participantId === currentParticipant?.id && interest.needsConfirmation && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => confirmInterest.mutate({ itemId: item.id })}
-                                  >
-                                    Confirm
-                                  </Button>
-                                )}
                               </div>
                             ))}
                           {!itemInterests.some(interest => 
@@ -582,40 +571,59 @@ export default function GamePage() {
         </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((item) => (
-            <div key={item.id}>
-              <ItemCard
-                item={item}
-                items={items}
-                onPriceChange={(price) => {
-                  calculatePriceChanges(item.id, price);
-                }}
-                isEditing={editingItemId === item.id}
-                onStartEdit={() => {
-                  if (!currentParticipant) {
-                    toast({
-                      title: "Error",
-                      description: "You must join the game to place bids",
-                      variant: "destructive"
-                    });
-                    return;
-                  }
-                  setEditingItemId(item.id);
-                  setPreviewPrices({});
-                }}
-                onCancelEdit={() => {
-                  setEditingItemId(null);
-                  setPreviewPrices({});
-                }}
-                previewPrices={previewPrices}
-                currentUser={currentParticipant ? {
-                  id: currentParticipant.id,
-                  name: currentParticipant.name
-                } : { id: 0, name: "" }}
-                bids={getItemBids(item.id)}
-              />
-            </div>
-          ))}
+          {items.map((item) => {
+            const itemBids = getItemBids(item.id);
+            const currentUserBid = currentParticipant ? 
+              itemInterests.find(interest => 
+                interest.itemId === item.id && 
+                interest.participantId === currentParticipant.id
+              ) || null : null;
+            const highestBid = itemBids.reduce((highest, current) => 
+              !highest || current.price > highest.price ? current : highest
+            , null as { userId: number; userName: string; price: number; needsConfirmation: boolean } | null);
+
+            return (
+              <div key={item.id}>
+                <ItemCard
+                  item={item}
+                  items={items}
+                  onPriceChange={(price) => {
+                    if (editingItemId === item.id) {
+                      calculatePriceChanges(item.id, price);
+                    } else {
+                      // This is a confirmation of new price
+                      confirmInterest.mutate({ itemId: item.id });
+                    }
+                  }}
+                  isEditing={editingItemId === item.id}
+                  onStartEdit={() => {
+                    if (!currentParticipant) {
+                      toast({
+                        title: "Error",
+                        description: "You must join the game to place bids",
+                        variant: "destructive"
+                      });
+                      return;
+                    }
+                    setEditingItemId(item.id);
+                    setPreviewPrices({});
+                  }}
+                  onCancelEdit={() => {
+                    setEditingItemId(null);
+                    setPreviewPrices({});
+                  }}
+                  previewPrices={previewPrices}
+                  currentUser={currentParticipant ? {
+                    id: currentParticipant.id,
+                    name: currentParticipant.name
+                  } : { id: 0, name: "" }}
+                  bids={itemBids}
+                  currentUserBid={currentUserBid}
+                  highestBid={highestBid}
+                />
+              </div>
+            );
+          })}
         </div>
 
         {Object.keys(previewPrices).length > 0 && (
@@ -624,14 +632,29 @@ export default function GamePage() {
               <CardContent className="p-4">
                 <div className="flex gap-4">
                   <Button
-                    onClick={() => {
-                      const updates = Object.entries(previewPrices).map(
-                        ([itemId, price]) => ({
+                    onClick={async () => {
+                      if (!editingItemId) return;
+
+                      // Update the main bid item first
+                      const mainBidPrice = previewPrices[editingItemId];
+                      await updatePrice.mutate({ 
+                        itemId: editingItemId, 
+                        price: mainBidPrice,
+                        isMainBid: true
+                      });
+
+                      // Then update other items' prices without creating interests
+                      const otherUpdates = Object.entries(previewPrices)
+                        .filter(([itemId]) => parseInt(itemId) !== editingItemId)
+                        .map(([itemId, price]) => ({
                           itemId: parseInt(itemId),
                           price,
-                        })
-                      );
-                      updates.forEach((update) => updatePrice.mutate(update));
+                          isMainBid: false
+                        }));
+
+                      for (const update of otherUpdates) {
+                        await updatePrice.mutate(update);
+                      }
                     }}
                   >
                     Confirm Bid
