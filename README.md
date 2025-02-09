@@ -1,24 +1,49 @@
 # Price Consensus Game
 
-A fun multiplayer game where you and your friends work together to guess the prices of various items! Test your knowledge of market values and see how close you can get to reaching a consensus with other players.
+A mobile-optimized web application for collaborative price allocation, designed with an iOS-style interface. Perfect for splitting costs among items when you know the total but need to determine individual prices through group consensus.
+
+## Features
+
+### Game Creation
+- Create new bidding games by uploading item photos and titles
+- Set a total price for all items combined
+- Share game links with other participants
+- Each game stays active for:
+  - 48 hours after the last activity
+  - 12 hours after consensus is reached
+
+### Bidding Process
+- Join existing games with unique usernames
+- Bid on individual item prices iteratively
+- Smart price balancing algorithm:
+  - Allows overbidding on specific items
+  - Automatically adjusts other items' prices to maintain the total sum
+  - Real-time price updates across all participants
+
+### Notifications
+- Optional email notifications for price changes
+- Stay updated on bidding progress
+- Get notified when consensus is reached
 
 ## How to Play
 
 1. **Start or Join a Game**
-   - Visit [https://dvirzg.github.io/price-consensus-game](https://dvirzg.github.io/price-consensus-game)
-   - Create a new game or join an existing one with a game code
+   - Create a new game by uploading items and setting total price
+   - Or join an existing game via shared link
+   - Choose your unique username
 
-2. **Gameplay**
-   - Each player is assigned random items
-   - Look at your items and estimate their prices
-   - Submit your price estimates
-   - Work with other players to reach a consensus
-   - The closer your group gets to the actual prices, the higher your score!
+2. **Place Your Bids**
+   - View all items and current price allocations
+   - Submit your price estimates for items
+   - Watch as prices adjust to maintain the total
 
-3. **Scoring**
-   - Points are awarded based on how close your group's consensus is to the actual prices
-   - The more players agree on a price, the better your chances of success
-   - Try to balance your own price knowledge with group consensus
+3. **Reach Consensus**
+   - Work with other players to find agreeable prices
+   - Get notifications as prices change
+   - Game completes when consensus is reached
+
+## Try It Out
+Visit [https://dvirzg.github.io/price-consensus-game](https://dvirzg.github.io/price-consensus-game) to start playing!
 
 ## Tips
 - Consider market prices and your personal experience
