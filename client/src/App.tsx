@@ -11,6 +11,12 @@ import NotFound from "@/pages/not-found";
 // Get the base path for GitHub Pages
 const base = import.meta.env.DEV ? '' : '/price-consensus-game';
 
+// Use hash router for GitHub Pages compatibility
+const hashRouter = (path: string) => {
+  if (typeof window === 'undefined') return '/';
+  return window.location.hash.replace('#', '') || '/';
+};
+
 function AppRouter() {
   return (
     <Switch>
@@ -26,7 +32,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Layout>
-        <Router base={base}>
+        <Router base={base} hook={() => [hashRouter('/'), () => {}]}>
           <AppRouter />
         </Router>
         <Toaster />

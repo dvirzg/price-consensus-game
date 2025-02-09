@@ -52,6 +52,10 @@ export default function GamePage() {
   });
   const resultsRef = useRef<HTMLDivElement>(null);
 
+  // Get base URL for GitHub Pages or development
+  const baseUrl = import.meta.env.DEV ? '' : '/price-consensus-game';
+  const gameLink = `${window.location.protocol}//${window.location.host}${baseUrl}/#/game/${id}`;
+
   useEffect(() => {
     const handleResize = () => {
       setWindowSize({
@@ -362,7 +366,6 @@ export default function GamePage() {
     );
   }
 
-  const gameLink = `${window.location.origin}/game/${id}`;
   const lastActive = new Date(game.lastActive);
   const timeUntilExpiry = formatDistanceToNow(lastActive, { addSuffix: true });
 
