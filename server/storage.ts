@@ -3,13 +3,13 @@ import { Game, InsertGame, Item, InsertItem, Participant, InsertParticipant } fr
 export interface IStorage {
   createGame(game: InsertGame): Promise<Game>;
   getGame(id: number): Promise<Game | undefined>;
-  updateGameStatus(id: number, status: string): Promise<void>;
+  updateGameStatus(id: number, status: "active" | "inactive" | "completed"): Promise<void>;
   updateGameLastActive(id: number): Promise<void>;
-  
+
   createItem(gameId: number, item: InsertItem): Promise<Item>;
   getGameItems(gameId: number): Promise<Item[]>;
   updateItemPrice(id: number, price: number): Promise<void>;
-  
+
   createParticipant(gameId: number, participant: InsertParticipant): Promise<Participant>;
   getGameParticipants(gameId: number): Promise<Participant[]>;
 }
@@ -36,6 +36,7 @@ export class MemStorage implements IStorage {
     const newGame: Game = {
       ...game,
       id,
+      totalPrice: game.totalPrice.toString(), // Convert to string for decimal storage
       createdAt: new Date(),
       lastActive: new Date(),
       status: "active",
@@ -48,7 +49,7 @@ export class MemStorage implements IStorage {
     return this.games.get(id);
   }
 
-  async updateGameStatus(id: number, status: string): Promise<void> {
+  async updateGameStatus(id: number, status: "active" | "inactive" | "completed"): Promise<void> {
     const game = this.games.get(id);
     if (game) {
       this.games.set(id, { ...game, status });
@@ -64,7 +65,12 @@ export class MemStorage implements IStorage {
 
   async createItem(gameId: number, item: InsertItem): Promise<Item> {
     const id = this.currentItemId++;
-    const newItem: Item = { ...item, id, gameId };
+    const newItem: Item = {
+      ...item,
+      id,
+      gameId,
+      currentPrice: item.currentPrice.toString(), // Convert to string for decimal storage
+    };
     this.items.set(id, newItem);
     return newItem;
   }
@@ -76,13 +82,18 @@ export class MemStorage implements IStorage {
   async updateItemPrice(id: number, price: number): Promise<void> {
     const item = this.items.get(id);
     if (item) {
-      this.items.set(id, { ...item, currentPrice: price });
+      this.items.set(id, { ...item, currentPrice: price.toString() }); // Convert to string for decimal storage
     }
   }
 
   async createParticipant(gameId: number, participant: InsertParticipant): Promise<Participant> {
     const id = this.currentParticipantId++;
-    const newParticipant: Participant = { ...participant, id, gameId };
+    const newParticipant: Participant = {
+      ...participant,
+      id,
+      gameId,
+      email: participant.email || null, // Ensure email is never undefined
+    };
     this.participants.set(id, newParticipant);
     return newParticipant;
   }

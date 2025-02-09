@@ -52,11 +52,24 @@ export default function GamePage() {
   });
 
   if (!game || !items) {
-    return <div>Loading...</div>;
+    return (
+      <div className="min-h-screen bg-gray-50 p-4">
+        <div className="max-w-md mx-auto">
+          <Card>
+            <CardContent className="p-8">
+              <div className="flex justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+              <p className="text-center mt-4">Loading game...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
   }
 
   const handlePriceChange = (itemId: number, newPrice: number) => {
-    const oldPrice = items.find((i) => i.id === itemId)?.currentPrice || 0;
+    const oldPrice = Number(items.find((i) => i.id === itemId)?.currentPrice) || 0;
     const priceDiff = newPrice - oldPrice;
     const otherItems = items.filter((i) => i.id !== itemId);
     const priceReducePerItem = priceDiff / otherItems.length;
@@ -66,7 +79,7 @@ export default function GamePage() {
     otherItems.forEach((item) => {
       updatePrice.mutate({
         itemId: item.id,
-        price: item.currentPrice - priceReducePerItem,
+        price: Number(item.currentPrice) - priceReducePerItem,
       });
     });
   };
@@ -128,7 +141,7 @@ export default function GamePage() {
           </CardHeader>
           <CardContent>
             <div className="text-lg font-medium mb-4">
-              Total: ${game.totalPrice}
+              Total: ${Number(game.totalPrice).toFixed(2)}
             </div>
             <div className="space-y-4">
               {items.map((item) => (
