@@ -7,8 +7,13 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Get the repository name from package.json or environment variable
+const base = process.env.NODE_ENV === 'production' ? '/consensus-game/' : '/';
+
 export default defineConfig({
   plugins: [react(), runtimeErrorOverlay(), themePlugin()],
+  base, // Add base URL for GitHub Pages
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "client", "src"),
