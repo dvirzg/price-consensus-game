@@ -171,6 +171,7 @@ export default function GamePage() {
                 <ItemCard
                   key={item.id}
                   item={item}
+                  items={items}
                   onPriceChange={(price) =>
                     handlePriceChange(item.id, price)
                   }
