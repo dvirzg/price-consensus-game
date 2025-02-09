@@ -217,8 +217,8 @@ export default function GamePage() {
   const isGameResolved = useMemo(() => {
     if (!items || !participants) return false;
     
-    // Check if we have more participants than items
-    if (participants.length > items.length) {
+    // Game can only be resolved if number of participants equals number of items
+    if (participants.length !== items.length) {
       return false;
     }
 
@@ -236,26 +236,23 @@ export default function GamePage() {
       );
     });
 
-    // Check if each item has at most one valid interest
-    const noConflictingInterests = currentInterests.every(interests => interests.length <= 1);
-
-    // Check if all items have exactly one valid interest
-    const allItemsHaveInterest = currentInterests.every(interests => interests.length === 1);
+    // Check if each item has exactly one valid interest
+    const allItemsHaveOneInterest = currentInterests.every(interests => interests.length === 1);
 
     // Check if there are no interests needing confirmation
     const noUnconfirmedInterests = !itemInterests.some(interest => interest.needsConfirmation);
 
-    // Each participant must have at least one valid interest
-    const allParticipantsHaveItems = participants.every(participant => 
-      itemInterests.some(interest => 
+    // Each participant must have exactly one valid interest
+    const participantItemCounts = participants.map(participant => {
+      return itemInterests.filter(interest => 
         interest.participantId === participant.id && 
         !interest.needsConfirmation &&
         Number(items.find(item => item.id === interest.itemId)?.currentPrice || 0) <= interest.price
-      )
-    );
+      ).length;
+    });
+    const allParticipantsHaveOneItem = participantItemCounts.every(count => count === 1);
 
-    return priceMatches && noConflictingInterests && allItemsHaveInterest && 
-           noUnconfirmedInterests && allParticipantsHaveItems;
+    return priceMatches && allItemsHaveOneInterest && noUnconfirmedInterests && allParticipantsHaveOneItem;
   }, [items, participants, itemInterests, game]);
 
   // Add reset game mutation
@@ -537,6 +534,80 @@ export default function GamePage() {
                     className="h-2"
                   />
                 </div>
+
+                <Card className="bg-orange-50/50">
+                  <CardContent className="p-4">
+                    <h3 className="font-medium mb-3">Actions Needed</h3>
+                    <div className="space-y-2">
+                      {participants?.map(participant => {
+                        // Check if participant has any bids
+                        const hasBids = itemInterests.some(interest => 
+                          interest.participantId === participant.id
+                        );
+
+                        // Check if participant has any interests needing confirmation
+                        const hasUnconfirmedInterests = itemInterests.some(interest => 
+                          interest.participantId === participant.id && 
+                          interest.needsConfirmation
+                        );
+
+                        // Get items that need confirmation
+                        const itemsNeedingConfirmation = items?.filter(item => 
+                          itemInterests.some(interest => 
+                            interest.participantId === participant.id && 
+                            interest.itemId === item.id &&
+                            interest.needsConfirmation
+                          )
+                        );
+
+                        if (!hasBids || hasUnconfirmedInterests) {
+                          return (
+                            <div key={participant.id} className="flex items-start gap-2 text-sm">
+                              <span className="font-medium">{participant.name}</span>
+                              <span className="text-muted-foreground">needs to</span>
+                              <div className="flex-1">
+                                {!hasBids && (
+                                  <span className="text-orange-600">make their first bid</span>
+                                )}
+                                {hasUnconfirmedInterests && (
+                                  <div className="text-yellow-600">
+                                    confirm new prices for:
+                                    <ul className="ml-2 list-disc list-inside">
+                                      {itemsNeedingConfirmation?.map(item => (
+                                        <li key={item.id}>{item.title}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })}
+                      {participants?.every(participant => 
+                        itemInterests.some(interest => 
+                          interest.participantId === participant.id
+                        ) &&
+                        !itemInterests.some(interest =>
+                          interest.participantId === participant.id &&
+                          interest.needsConfirmation
+                        )
+                      ) && !itemInterests.some(interest => interest.needsConfirmation) && 
+                      items?.every(item => 
+                        itemInterests.some(interest => 
+                          interest.itemId === item.id && 
+                          !interest.needsConfirmation &&
+                          Math.abs(interest.price - Number(item.currentPrice)) < 0.01
+                        )
+                      ) && (
+                        <div className="text-sm text-muted-foreground">
+                          All players have made their bids. Keep adjusting prices until everyone is satisfied!
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
 
                 <div className="text-sm space-y-2">
                   <div className="font-medium">Current Item Interests:</div>

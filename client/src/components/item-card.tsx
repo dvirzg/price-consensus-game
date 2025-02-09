@@ -38,6 +38,7 @@ export default function ItemCard({
   const [manualPrice, setManualPrice] = useState<string>("");
   const [showImageModal, setShowImageModal] = useState(false);
   const [showAllBids, setShowAllBids] = useState(false);
+  const [direction, setDirection] = useState<"up" | "down" | null>(null);
   
   const priceSteps = [1, 5, 10, 50];
   const displayPrice = previewPrices?.[item.id] ?? Number(item.currentPrice);
@@ -47,7 +48,8 @@ export default function ItemCard({
   // Sort bids by price in descending order
   const sortedBids = [...bids].sort((a, b) => b.price - a.price);
 
-  const handlePriceStep = (step: number) => {
+  const handlePriceStep = (amount: number) => {
+    const step = direction === "up" ? amount : -amount;
     const newPrice = Number(item.currentPrice) + step;
     if (newPrice >= 0) {
       setLocalPreviewPrice(newPrice);
@@ -59,9 +61,24 @@ export default function ItemCard({
     setManualPrice(value);
     const numericPrice = parseFloat(value);
     if (!isNaN(numericPrice) && numericPrice >= 0) {
-      setLocalPreviewPrice(numericPrice);
-      onPriceChange(numericPrice);
+      const step = direction === "up" ? numericPrice : -numericPrice;
+      const newPrice = Number(item.currentPrice) + step;
+      if (newPrice >= 0) {
+        setLocalPreviewPrice(newPrice);
+        onPriceChange(newPrice);
+      }
     }
+  };
+
+  const handleCancelEdit = () => {
+    setManualPrice("");
+    setDirection(null);
+    onCancelEdit();
+  };
+
+  const handleStartEdit = () => {
+    setManualPrice("");
+    onStartEdit();
   };
 
   return (
@@ -132,58 +149,77 @@ export default function ItemCard({
 
               {isEditing && (
                 <div className="space-y-2">
-                  <div className="flex flex-wrap gap-1">
-                    {priceSteps.map((step) => (
-                      <div key={step} className="flex flex-col gap-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="px-2 py-0 h-6 text-green-600 hover:text-green-700 hover:border-green-600"
-                          onClick={() => handlePriceStep(step)}
-                        >
-                          <ChevronUp className="h-3 w-3" />
-                          ${step}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="px-2 py-0 h-6 text-red-600 hover:text-red-700 hover:border-red-600"
-                          onClick={() => handlePriceStep(-step)}
-                        >
-                          <ChevronDown className="h-3 w-3" />
-                          ${step}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-2 items-center">
-                    <Input
-                      type="number"
-                      placeholder="Enter your bid"
-                      value={manualPrice}
-                      onChange={(e) => handleManualPriceChange(e.target.value)}
-                      className="h-7 text-sm"
-                      step="0.01"
-                    />
+                  <div className="flex items-center gap-2">
                     <Button
-                      variant="outline"
                       size="sm"
-                      className="h-7 px-2"
-                      onClick={() => {
-                        setManualPrice("");
-                        onCancelEdit();
-                      }}
+                      variant={direction === "up" ? "default" : "outline"}
+                      className={direction === "up" 
+                        ? "flex-1 bg-green-600 hover:bg-green-700" 
+                        : "flex-1 text-green-600 hover:text-green-700 hover:border-green-600"}
+                      onClick={() => setDirection("up")}
                     >
-                      <X className="h-4 w-4" />
+                      <ChevronUp className="h-4 w-4 mr-1" />
+                      Increase
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={direction === "down" ? "default" : "outline"}
+                      className={direction === "down" 
+                        ? "flex-1 bg-red-600 hover:bg-red-700" 
+                        : "flex-1 text-red-600 hover:text-red-700 hover:border-red-600"}
+                      onClick={() => setDirection("down")}
+                    >
+                      <ChevronDown className="h-4 w-4 mr-1" />
+                      Decrease
                     </Button>
                   </div>
+                  {direction && (
+                    <>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[5, 10, 50, 100].map((amount) => (
+                          <Button
+                            key={amount}
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 min-w-[60px] px-2 py-1 h-7"
+                            onClick={() => handlePriceStep(amount)}
+                          >
+                            {direction === "up" ? "+" : "-"}${amount}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <div className="relative flex-1">
+                          <Input
+                            type="number"
+                            placeholder="Enter exact amount"
+                            value={manualPrice}
+                            onChange={(e) => handleManualPriceChange(e.target.value)}
+                            className="h-8 text-sm pr-8 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            step="0.01"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                            $
+                          </span>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2 shrink-0"
+                          onClick={handleCancelEdit}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
               {!isEditing && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={onStartEdit}
+                  onClick={handleStartEdit}
                   className="w-full"
                 >
                   {currentUserBid ? 'Update Bid' : 'Place Bid'}
