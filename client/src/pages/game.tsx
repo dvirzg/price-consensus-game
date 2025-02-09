@@ -5,12 +5,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import ItemCard from "@/components/item-card";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Clock, Link as LinkIcon } from "lucide-react";
+import { ArrowLeft, Clock, Link as LinkIcon, Trophy, UserPlus, Users2 } from "lucide-react";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
+import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export default function GamePage() {
   const { id } = useParams();
@@ -18,6 +27,9 @@ export default function GamePage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [previewPrices, setPreviewPrices] = useState<{ [key: number]: number }>({});
+  const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
+  const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
 
   const { data: game, error: gameError } = useQuery<Game>({
     queryKey: [`/api/games/${id}`],
@@ -39,13 +51,18 @@ export default function GamePage() {
 
   const joinGame = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", `/api/games/${id}/participants`, {
+      const response = await apiRequest("POST", `/api/games/${id}/participants`, {
         name,
         email,
       });
+      return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/participants`] });
+      setCurrentParticipant(data);
+      setIsAddPlayerOpen(false);
+      setName("");
+      setEmail("");
       toast({ title: "Success", description: "Joined game successfully" });
     },
   });
@@ -57,6 +74,7 @@ export default function GamePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/items`] });
       setEditingItemId(null);
+      setPreviewPrices({});
     },
   });
 
@@ -72,6 +90,57 @@ export default function GamePage() {
       queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/assignments`] });
     },
   });
+
+  const calculatePriceChanges = (itemId: number, newPrice: number) => {
+    if (!items) return;
+    
+    const updatedItem = items.find(item => item.id === itemId);
+    if (!updatedItem) return;
+
+    const priceDiff = newPrice - Number(updatedItem.currentPrice);
+    const otherItems = items.filter(item => item.id !== itemId);
+    const priceReducePerItem = priceDiff / otherItems.length;
+
+    const newPrices = {
+      [itemId]: newPrice,
+      ...Object.fromEntries(
+        otherItems.map(item => [
+          item.id,
+          Number(item.currentPrice) - priceReducePerItem
+        ])
+      )
+    };
+
+    setPreviewPrices(newPrices);
+  };
+
+  // Calculate if the game is resolved (all items have highest bidders and total price matches)
+  const isGameResolved = useMemo(() => {
+    if (!items || !participants || !assignments) return false;
+    
+    // Check if all items have assignments
+    const allItemsAssigned = items.every(item => 
+      assignments.some(a => a.itemId === item.id)
+    );
+
+    // Check if total price matches
+    const totalBidPrice = items.reduce((sum, item) => sum + Number(item.currentPrice), 0);
+    const priceMatches = Math.abs(totalBidPrice - Number(game?.totalPrice)) < 0.01;
+
+    return allItemsAssigned && priceMatches;
+  }, [items, participants, assignments, game]);
+
+  // Get all bids for an item
+  const getItemBids = (itemId: number): { userId: number; userName: string; price: number }[] => {
+    if (!participants || !assignments) return [];
+
+    const itemAssignments = assignments.filter(a => a.itemId === itemId);
+    return itemAssignments.map(assignment => ({
+      userId: assignment.participantId,
+      userName: getParticipantName(assignment.participantId),
+      price: Number(items?.find(i => i.id === itemId)?.currentPrice || 0)
+    }));
+  };
 
   // Handle API errors
   if (gameError || itemsError) {
@@ -167,89 +236,244 @@ export default function GamePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-3xl mx-auto space-y-4">
-        <Link href="/">
-          <Button variant="ghost">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
+      <div className="max-w-7xl mx-auto space-y-4">
+        <div className="flex justify-between items-center">
+          <Link href="/">
+            <Button variant="ghost">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            </Button>
+          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              navigator.clipboard.writeText(gameLink);
+              toast({ description: "Link copied to clipboard" });
+            }}
+          >
+            <LinkIcon className="h-4 w-4 mr-2" />
+            Share Game
           </Button>
-        </Link>
+        </div>
 
         <Card className="mb-4">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="font-medium">Game ID: {id}</div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs"
-                onClick={() => {
-                  navigator.clipboard.writeText(gameLink);
-                  toast({ description: "Link copied to clipboard" });
-                }}
-              >
-                <LinkIcon className="h-4 w-4 mr-2" />
-                Copy Link
-              </Button>
-            </div>
-            <div className="text-sm text-muted-foreground flex items-center">
-              <Clock className="h-4 w-4 mr-1" />
-              Last active {timeUntilExpiry}
-              <span className="mx-2">•</span>
-              Expires after 48h of inactivity or 12h after resolution
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{game.title}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-lg font-medium mb-4">
-              Total: ${Number(game.totalPrice).toFixed(2)}
-            </div>
-            <div className="space-y-8">
-              {items.map((item) => (
-                <div key={item.id} className="space-y-2">
-                  <ItemCard
-                    item={item}
-                    items={items}
-                    onPriceChange={(price) => {
-                      const oldPrice = Number(item.currentPrice);
-                      const priceDiff = price - oldPrice;
-                      const otherItems = items.filter((i) => i.id !== item.id);
-                      const priceReducePerItem = priceDiff / otherItems.length;
-
-                      updatePrice.mutate({ itemId: item.id, price });
-                      otherItems.forEach((otherItem) => {
-                        updatePrice.mutate({
-                          itemId: otherItem.id,
-                          price: Number(otherItem.currentPrice) - priceReducePerItem,
-                        });
-                      });
-                    }}
-                    isEditing={editingItemId === item.id}
-                    onStartEdit={() => setEditingItemId(item.id)}
-                    onCancelEdit={() => setEditingItemId(null)}
-                  />
-                  <div className="ml-4">
-                    <h4 className="text-sm font-medium mb-1">Assigned Users:</h4>
-                    <div className="space-y-1">
-                      {getItemAssignments(item.id).map((assignment) => (
-                        <div key={assignment.id} className="text-sm">
-                          {getParticipantName(assignment.participantId)}
-                        </div>
-                      ))}
-                      {getItemAssignments(item.id).length === 0 && (
-                        <div className="text-sm text-muted-foreground">No assignments yet</div>
-                      )}
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold mb-2">{game.title}</h1>
+                <div className="flex items-center gap-4">
+                  <p className="text-lg font-medium">
+                    Total: ${Number(game.totalPrice).toFixed(2)}
+                  </p>
+                  {isGameResolved && (
+                    <div className="flex items-center gap-2 text-green-600">
+                      <Trophy className="h-5 w-5" />
+                      <span className="font-medium">Game Resolved!</span>
                     </div>
-                  </div>
+                  )}
                 </div>
-              ))}
+              </div>
+              <div className="text-sm text-right">
+                <div className="flex items-center justify-end mb-1">
+                  <Clock className="h-4 w-4 mr-1" />
+                  Last active {timeUntilExpiry}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(gameLink);
+                    toast({ description: "Link copied to clipboard" });
+                  }}
+                >
+                  <LinkIcon className="h-4 w-4 mr-2" />
+                  Share Game
+                </Button>
+              </div>
+            </div>
+
+            {!isGameResolved && (
+              <div className="mt-4">
+                <div className="flex justify-between text-sm mb-2">
+                  <span>Progress to resolution</span>
+                  <span className="text-muted-foreground">
+                    {assignments?.length || 0} of {items?.length || 0} items assigned
+                  </span>
+                </div>
+                <Progress 
+                  value={((assignments?.length || 0) / (items?.length || 1)) * 100} 
+                  className="h-2"
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="mb-4">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Users2 className="h-5 w-5" />
+                <h2 className="text-lg font-medium">Players</h2>
+              </div>
+              <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Add Player
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Player</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <Input
+                      placeholder="Player Name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                    />
+                    <Input
+                      placeholder="Email (optional)"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                    <Button
+                      className="w-full"
+                      onClick={() => joinGame.mutate()}
+                      disabled={!name}
+                    >
+                      Add Player
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Playing as
+                </label>
+                <Select
+                  value={currentParticipant?.id?.toString() || ""}
+                  onValueChange={(value) => {
+                    const participant = participants?.find(p => p.id === parseInt(value));
+                    setCurrentParticipant(participant || null);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select player" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {participants?.map((participant) => (
+                      <SelectItem 
+                        key={participant.id} 
+                        value={participant.id.toString()}
+                      >
+                        {participant.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Other Players
+                </label>
+                <div className="text-sm space-y-1 border rounded-md p-2 min-h-[38px]">
+                  {participants
+                    ?.filter(p => p.id !== currentParticipant?.id)
+                    .map((participant) => (
+                      <div key={participant.id} className="flex items-center gap-2 p-1">
+                        <span className="truncate">{participant.name}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {items.map((item) => (
+            <div key={item.id}>
+              <ItemCard
+                item={item}
+                items={items}
+                onPriceChange={(price) => {
+                  calculatePriceChanges(item.id, price);
+                }}
+                isEditing={editingItemId === item.id}
+                onStartEdit={() => {
+                  if (!currentParticipant) {
+                    toast({
+                      title: "Error",
+                      description: "You must join the game to place bids",
+                      variant: "destructive"
+                    });
+                    return;
+                  }
+                  setEditingItemId(item.id);
+                  setPreviewPrices({});
+                }}
+                onCancelEdit={() => {
+                  setEditingItemId(null);
+                  setPreviewPrices({});
+                }}
+                previewPrices={previewPrices}
+                currentUser={currentParticipant ? {
+                  id: currentParticipant.id,
+                  name: currentParticipant.name
+                } : { id: 0, name: "" }}
+                bids={getItemBids(item.id)}
+              />
+            </div>
+          ))}
+        </div>
+
+        {Object.keys(previewPrices).length > 0 && (
+          <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2">
+            <Card className="shadow-lg">
+              <CardContent className="p-4">
+                <div className="flex gap-4">
+                  <Button
+                    onClick={() => {
+                      const updates = Object.entries(previewPrices).map(
+                        ([itemId, price]) => ({
+                          itemId: parseInt(itemId),
+                          price,
+                        })
+                      );
+                      updates.forEach((update) => updatePrice.mutate(update));
+                      
+                      // Create assignment for the current user
+                      if (currentParticipant && editingItemId) {
+                        assignItem.mutate({
+                          itemId: editingItemId,
+                          participantId: currentParticipant.id
+                        });
+                      }
+                    }}
+                  >
+                    Confirm Bid
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingItemId(null);
+                      setPreviewPrices({});
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );
