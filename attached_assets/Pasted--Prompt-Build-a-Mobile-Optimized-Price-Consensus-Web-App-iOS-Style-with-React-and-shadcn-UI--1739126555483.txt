@@ -1,0 +1,139 @@
+## Prompt: Build a Mobile-Optimized Price Consensus Web App (iOS-Style) with React and shadcn UI
+
+### 1. Overview
+
+**Objective**  
+Create a mobile-friendly (iOS-style) price consensus finding web application using **React** and **shadcn UI**. This application should allow users to:
+
+1. Start or revisit bidding games.
+2. Upload items with images and titles.
+3. Collectively agree on how a fixed total price should be divided among individual items, but total sum should be set in the bidding game creation stage.
+4. Receive notifications about price changes via email.
+5. Keep track of bidding pages that expire or complete after certain conditions are met.
+
+### 2. User Flow & Core Features
+
+1. **Landing Page**  
+   - Two main actions:
+     1. **Create a New Bidding Game**  
+        - Prompts user to upload pictures of each item and provide a title.  
+        - Prompts user to specify the total fixed price for all items combined.
+        - Generates a unique sharing link for others to join and bid.  
+     2. **Go Back to an Existing Bidding Game**  
+        - Prompts user to enter or select a previously created game’s link or reference.  
+        - Redirects to the existing bidding interface.
+
+2. **Bidding Game Page**  
+   - **User Identification**:  
+     - Each participant must provide a **unique name** (username or display name) to join the bidding.
+   - **Price Bidding Mechanism**:  
+     - Each user can adjust (bid on) the price of individual items.
+     - A key algorithm ensures the **sum of all item prices remains constant** at the total set in the creation step.
+     - If a user raises a specific item’s price above some threshold, **the algorithm** must lower one or more other items’ prices to keep the total unchanged.
+   - **Notifications**:  
+     - Users can optionally enter their **email addresses** to receive updates when prices change.
+   - **Completion & Timeout**:  
+     - The bidding page remains active until **48 hours of inactivity**.
+     - Or it remains active until **12 hours** after a final bid is achieved and the group has reached consensus (or a “match” is found).
+
+### 3. Detailed Requirements
+
+1. **React + shadcn UI Integration**  
+   - Use React for the front end logic.
+   - Apply shadcn UI components to achieve an **iOS-style**, modern look.
+   - Ensure the interface is responsive and optimized for **mobile devices**.
+
+2. **Image Upload & Title**  
+   - Each item can have:
+     - A title or short description.
+     - An uploaded image (handle uploading/previewing).
+   - Store item data in a suitable state management solution (e.g., use React context, Redux, or simpler patterns, depending on the recommended approach).
+
+3. **Dynamic Pricing Algorithm**  
+   - Must maintain the overall total price constant.
+   - If a participant increases the bid for one item, the algorithm evenly or proportionally (or via a chosen logic) reduces the bids of other items to maintain the total.
+   - Provide real-time updates to all users currently on the page.
+
+4. **Email Notification System**  
+   - Provide an input for users to submit their email address.
+   - Send automated emails when:
+     - A new bid is placed or adjusted.
+     - The bidding page is nearing expiration or has been finalized.
+   - Ensure compliance with basic email best practices and spam prevention.
+
+5. **Game State & Expiration**  
+   - Store active bidding sessions in a database or in-memory state with timestamps.
+   - Automatically mark a bidding page as “inactive” if:
+     - No new bids occur for **48 hours**, OR
+     - **12 hours** after a final consensus or match is found.
+
+6. **UI & UX**  
+   - Mimic iOS styling (rounded corners, smooth animations, clean typography).
+   - Provide **intuitive** interactions:
+     - Smooth drag-and-drop or plus/minus toggles to change bids.
+     - Instant, real-time visual feedback on how changes affect item prices.
+   - Prominently display the total price at all times.
+
+7. **Security Considerations**  
+   - Generate unique links for each bidding game.
+   - Provide a simple authentication layer (if needed) to prevent unauthorized access.
+   - Sanitize user-generated content (item titles, usernames, etc.).
+
+### 4. Technical Implementation Outline
+
+1. **Tech Stack**  
+   - **Front End**:  
+     - React + shadcn UI + (optional) Next.js or Vite for build tooling.
+   - **Back End**:  
+     - Node.js, Express, or Next.js API routes for handling item data, real-time updates, and notifications.
+     - Database of choice (MongoDB, PostgreSQL, or an in-memory store if ephemeral usage is acceptable).
+   - **Notifications**:  
+     - Use a transactional email service (e.g., SendGrid, Postmark) to handle email distribution.
+   - **Real-Time Updates** (if desired):  
+     - Consider using WebSockets or frameworks like Socket.io for immediate bid adjustments across multiple users.
+
+2. **Data Models**  
+   - **Game Model**:  
+     - `id`, `title`, `items`, `totalPrice`, `createdAt`, `lastUpdatedAt`, `status` (active, inactive, completed), etc.
+   - **Item Model**:  
+     - `name`, `currentPrice`, `imageURL`, `…`
+   - **User/Participant Model** (if needed):  
+     - `uniqueName`, `email`, `bids`, `lastActive`, etc.
+
+3. **Pages & Components**  
+   - **LandingPage**:  
+     - Buttons for “Create New Game” & “Join Existing Game”.
+   - **CreateGameForm**:  
+     - Fields for uploading images, entering item titles, total price, etc.
+     - Submission generates a unique link for the new game.
+   - **BiddingPage**:  
+     - Displays items, current prices, total, participant info.
+     - Provides interactive sliders/inputs for adjusting bids.
+     - Shows notifications or toasts for any changes.
+   - **EmailSubscriptionForm**:  
+     - Allows participants to subscribe to email notifications.
+   - **ExpirationHandler**:  
+     - Cron job or background script to mark games inactive after 48h inactivity or 12h post-completion.
+
+4. **Workflow**  
+   1. **User creates a game** → system saves game info → returns shareable link.  
+   2. **Participants join via the link** → unique names assigned → real-time bidding.  
+   3. **Each participant updates an item’s price** → the app recalculates other item prices → updates the state so sum remains constant.  
+   4. **Email notifications** trigger for all subscribed participants.  
+   5. **After inactivity or consensus** → the game expires → status is set to completed or inactive → final results are shared if needed.
+
+### 5. Success Criteria
+
+1. **Responsive & Intuitive Design**:  
+   - The interface must be easily usable on both mobile and desktop devices, with an iOS-inspired look and feel.
+2. **Accurate Real-Time Bidding**:  
+   - The total price must always remain constant, reflecting changes instantly across all connected users.
+3. **Robust Notification System**:  
+   - Participants who provide emails must reliably get notified of changes.
+4. **Proper Expiration & Cleanup**:  
+   - Game sessions should automatically expire under the defined conditions (48 hours no activity, or 12 hours after reaching a final consensus).
+
+### 6. Additional Notes
+
+- If desired, you can add a feature to archive older bids or export final results.
+- Consider including a small tutorial or onboarding flow so participants understand how to adjust bids and why the total stays fixed.
