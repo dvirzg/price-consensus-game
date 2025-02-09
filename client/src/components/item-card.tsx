@@ -82,177 +82,173 @@ export default function ItemCard({
   };
 
   return (
-    <>
-      <Card className={`transition-all duration-200 ${isPriceChanged ? 'ring-2 ring-primary' : ''} ${highestBid?.userId === currentUser.id ? 'bg-green-50' : ''}`}>
-        <CardContent className="p-3">
-          <div className="flex gap-3">
-            <div 
-              className="relative w-20 h-20 cursor-pointer hover:opacity-90 transition-opacity"
-              onClick={() => setShowImageModal(true)}
-            >
-              <img
-                src={item.imageData}
-                alt={item.title}
-                className="w-20 h-20 object-cover rounded-md flex-shrink-0"
-              />
-              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-20 rounded-md transition-all">
-                <span className="text-white opacity-0 hover:opacity-100">View</span>
-              </div>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="font-medium text-sm truncate">{item.title}</h3>
-                {highestBid && (
-                  <div 
-                    className="flex items-center gap-1 text-xs cursor-pointer"
-                    onClick={() => setShowAllBids(!showAllBids)}
-                  >
-                    <Users className="h-3 w-3" />
-                    <span>{bids.length} bid{bids.length !== 1 ? 's' : ''}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className={`text-lg font-semibold ${isPriceChanged ? (priceChange > 0 ? 'text-green-600' : 'text-red-600') : ''}`}>
-                    {formatPrice(displayPrice)}
-                  </span>
-                  {isPriceChanged && (
-                    <span className={`text-sm ${priceChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ({priceChange > 0 ? '+' : ''}{formatPrice(priceChange)})
-                    </span>
-                  )}
-                </div>
-                {highestBid && (
-                  <div className={`flex items-center gap-1 text-sm ${highestBid.userId === currentUser.id ? 'text-green-600' : 'text-muted-foreground'}`}>
-                    {highestBid.userId === currentUser.id && <Crown className="h-3 w-3" />}
-                    <span className="truncate">{highestBid.userName}</span>
-                  </div>
-                )}
-              </div>
-
-              {showAllBids && (
-                <div className="mb-2 space-y-1 text-sm">
-                  {sortedBids.map((bid, index) => (
-                    <div key={bid.userId} className="flex items-center justify-between">
-                      <span className={`truncate ${bid.userId === currentUser.id ? 'font-medium' : ''}`}>
-                        {bid.userName}
-                      </span>
-                      <span className={index === 0 ? 'text-green-600 font-medium' : ''}>
-                        {formatPrice(bid.price)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {isEditing && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant={direction === "up" ? "default" : "outline"}
-                      className={direction === "up" 
-                        ? "flex-1 bg-green-600 hover:bg-green-700" 
-                        : "flex-1 text-green-600 hover:text-green-700 hover:border-green-600"}
-                      onClick={() => setDirection("up")}
-                    >
-                      <ChevronUp className="h-4 w-4 mr-1" />
-                      Increase
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={direction === "down" ? "default" : "outline"}
-                      className={direction === "down" 
-                        ? "flex-1 bg-red-600 hover:bg-red-700" 
-                        : "flex-1 text-red-600 hover:text-red-700 hover:border-red-600"}
-                      onClick={() => setDirection("down")}
-                    >
-                      <ChevronDown className="h-4 w-4 mr-1" />
-                      Decrease
-                    </Button>
-                  </div>
-                  {direction && (
-                    <>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[5, 10, 50, 100].map((amount) => (
-                          <Button
-                            key={amount}
-                            size="sm"
-                            variant="outline"
-                            className="flex-1 min-w-[60px] px-2 py-1 h-7"
-                            onClick={() => handlePriceStep(amount)}
-                          >
-                            {direction === "up" ? "+" : "-"}${amount}
-                          </Button>
-                        ))}
-                      </div>
-                      <div className="flex gap-2 items-center">
-                        <div className="relative flex-1">
-                          <Input
-                            type="number"
-                            placeholder="Enter exact amount"
-                            value={manualPrice}
-                            onChange={(e) => handleManualPriceChange(e.target.value)}
-                            className="h-8 text-sm pr-8 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            step="0.01"
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                            $
-                          </span>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 px-2 shrink-0"
-                          onClick={handleCancelEdit}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-              {!isEditing && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleStartEdit}
-                  className="w-full"
-                >
-                  {currentUserBid ? 'Update Bid' : 'Place Bid'}
-                </Button>
-              )}
-              {!isEditing && currentUserBid && Number(item.currentPrice) !== currentUserBid.price && (
-                <div className="mt-2">
-                  <div className="text-sm text-muted-foreground mb-1">
-                    Your previous bid: ${currentUserBid.price.toFixed(2)}
-                    <br />
-                    New price: ${Number(item.currentPrice).toFixed(2)}
-                    <span className={Number(item.currentPrice) > currentUserBid.price ? "text-red-500" : "text-green-500"}>
-                      {" "}({Number(item.currentPrice) > currentUserBid.price ? "+" : ""}
-                      ${(Number(item.currentPrice) - currentUserBid.price).toFixed(2)})
-                    </span>
-                  </div>
-                  {/* Only show confirm button if no one else has bid higher */}
-                  {(!highestBid || highestBid.userId === currentUser.id) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => onPriceChange(Number(item.currentPrice))}
-                    >
-                      Confirm New Price
-                    </Button>
-                  )}
-                </div>
+    <Card className="overflow-hidden bg-card border-border shadow-lg">
+      <div className="relative aspect-[4/3]">
+        <img
+          src={item.imageData}
+          alt={item.title}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-6">
+          <div className="text-white">
+            <h3 className="font-semibold text-2xl mb-2">{item.title}</h3>
+            <div className="flex items-center gap-3">
+              <span className="font-medium text-xl">${Number(item.currentPrice).toFixed(2)}</span>
+              {previewPrices[item.id] && (
+                <span className="text-lg opacity-80">
+                  → ${previewPrices[item.id].toFixed(2)}
+                </span>
               )}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4 border-t border-border">
+        {isEditing ? (
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <div className="grid grid-cols-2 gap-2 flex-1">
+                  <Button
+                    size="lg"
+                    variant={direction === "up" ? "default" : "outline"}
+                    className={direction === "up" 
+                      ? "w-full bg-green-600 hover:bg-green-700 h-11" 
+                      : "w-full text-green-600 hover:text-green-700 hover:border-green-600 h-11"}
+                    onClick={() => setDirection("up")}
+                  >
+                    <ChevronUp className="h-4 w-4 mr-2" />
+                    Increase
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant={direction === "down" ? "default" : "outline"}
+                    className={direction === "down" 
+                      ? "w-full bg-red-600 hover:bg-red-700 h-11" 
+                      : "w-full text-red-600 hover:text-red-700 hover:border-red-600 h-11"}
+                    onClick={() => setDirection("down")}
+                  >
+                    <ChevronDown className="h-4 w-4 mr-2" />
+                    Decrease
+                  </Button>
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-11 w-11 shrink-0"
+                  onClick={handleCancelEdit}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              {direction && (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[5, 10, 50, 100].map((amount) => (
+                      <Button
+                        key={amount}
+                        variant="outline"
+                        size="lg"
+                        className="w-full h-11"
+                        onClick={() => handlePriceStep(amount)}
+                      >
+                        {direction === "up" ? "+" : "-"}${amount}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        type="number"
+                        placeholder="Enter amount"
+                        value={manualPrice}
+                        onChange={(e) => handleManualPriceChange(e.target.value)}
+                        className="h-11 pr-6 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        step="0.01"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        $
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {currentUserBid?.needsConfirmation && (
+              <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                <p className="text-base text-yellow-500">
+                  Price has increased. Please confirm your interest at the new price.
+                </p>
+                <div className="mt-3">
+                  <Button
+                    size="lg"
+                    className="w-full bg-yellow-500 hover:bg-yellow-600 text-white h-12"
+                    onClick={() => onPriceChange(Number(item.currentPrice))}
+                  >
+                    Confirm
+                  </Button>
+                </div>
+              </div>
+            )}
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-base font-medium text-foreground">Current Bids</span>
+                {!currentUserBid && (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="hover:bg-accent h-11 px-6"
+                    onClick={() => onStartEdit()}
+                  >
+                    Place Bid
+                  </Button>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                {bids.length > 0 ? (
+                  bids.map((bid) => (
+                    <div
+                      key={bid.userId}
+                      className="flex justify-between items-center p-3 rounded-xl bg-accent/50 text-base"
+                    >
+                      <span className="font-medium text-foreground">{bid.userName}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">
+                          ${bid.price.toFixed(2)}
+                        </span>
+                        {bid.needsConfirmation && (
+                          <span className="text-yellow-500 text-sm">
+                            (needs confirmation)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-base text-muted-foreground py-2">No bids yet</p>
+                )}
+              </div>
+            </div>
+
+            {currentUserBid && !currentUserBid.needsConfirmation && (
+              <Button
+                variant="outline"
+                size="lg"
+                className="w-full hover:bg-accent h-12 text-base"
+                onClick={() => onStartEdit()}
+              >
+                Update Bid
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
 
       <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
         <DialogContent className="max-w-3xl w-full p-0">
@@ -273,6 +269,6 @@ export default function ItemCard({
           </div>
         </DialogContent>
       </Dialog>
-    </>
+    </Card>
   );
 }
