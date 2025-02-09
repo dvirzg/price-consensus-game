@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertGameSchema, insertItemSchema, insertParticipantSchema } from "@shared/schema";
 import { z } from "zod";
+import { fromZodError } from "zod-validation-error";
 
 export function registerRoutes(app: Express): Server {
   app.post("/api/games", async (req, res) => {
@@ -12,20 +13,27 @@ export function registerRoutes(app: Express): Server {
       res.json(created);
     } catch (err) {
       if (err instanceof z.ZodError) {
-        res.status(400).json({ message: "Invalid game data" });
+        const validationError = fromZodError(err);
+        res.status(400).json({ message: validationError.message });
       } else {
+        console.error("Failed to create game:", err);
         res.status(500).json({ message: "Failed to create game" });
       }
     }
   });
 
   app.get("/api/games/:id", async (req, res) => {
-    const game = await storage.getGame(Number(req.params.id));
-    if (!game) {
-      res.status(404).json({ message: "Game not found" });
-      return;
+    try {
+      const game = await storage.getGame(Number(req.params.id));
+      if (!game) {
+        res.status(404).json({ message: "Game not found" });
+        return;
+      }
+      res.json(game);
+    } catch (err) {
+      console.error("Failed to get game:", err);
+      res.status(500).json({ message: "Failed to get game" });
     }
-    res.json(game);
   });
 
   app.post("/api/games/:id/items", async (req, res) => {
@@ -34,23 +42,39 @@ export function registerRoutes(app: Express): Server {
       const created = await storage.createItem(Number(req.params.id), item);
       res.json(created);
     } catch (err) {
-      res.status(400).json({ message: "Invalid item data" });
+      if (err instanceof z.ZodError) {
+        const validationError = fromZodError(err);
+        res.status(400).json({ message: validationError.message });
+      } else {
+        console.error("Failed to create item:", err);
+        res.status(400).json({ message: "Failed to create item" });
+      }
     }
   });
 
   app.get("/api/games/:id/items", async (req, res) => {
-    const items = await storage.getGameItems(Number(req.params.id));
-    res.json(items);
+    try {
+      const items = await storage.getGameItems(Number(req.params.id));
+      res.json(items);
+    } catch (err) {
+      console.error("Failed to get items:", err);
+      res.status(500).json({ message: "Failed to get items" });
+    }
   });
 
   app.patch("/api/items/:id/price", async (req, res) => {
-    const { price } = req.body;
-    if (typeof price !== "number") {
-      res.status(400).json({ message: "Invalid price" });
-      return;
+    try {
+      const { price } = req.body;
+      if (typeof price !== "number") {
+        res.status(400).json({ message: "Invalid price - must be a number" });
+        return;
+      }
+      await storage.updateItemPrice(Number(req.params.id), price);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Failed to update price:", err);
+      res.status(500).json({ message: "Failed to update price" });
     }
-    await storage.updateItemPrice(Number(req.params.id), price);
-    res.json({ success: true });
   });
 
   app.post("/api/games/:id/participants", async (req, res) => {
@@ -59,13 +83,24 @@ export function registerRoutes(app: Express): Server {
       const created = await storage.createParticipant(Number(req.params.id), participant);
       res.json(created);
     } catch (err) {
-      res.status(400).json({ message: "Invalid participant data" });
+      if (err instanceof z.ZodError) {
+        const validationError = fromZodError(err);
+        res.status(400).json({ message: validationError.message });
+      } else {
+        console.error("Failed to create participant:", err);
+        res.status(400).json({ message: "Failed to create participant" });
+      }
     }
   });
 
   app.get("/api/games/:id/participants", async (req, res) => {
-    const participants = await storage.getGameParticipants(Number(req.params.id));
-    res.json(participants);
+    try {
+      const participants = await storage.getGameParticipants(Number(req.params.id));
+      res.json(participants);
+    } catch (err) {
+      console.error("Failed to get participants:", err);
+      res.status(500).json({ message: "Failed to get participants" });
+    }
   });
 
   const httpServer = createServer(app);
