@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import ItemCard from "@/components/item-card";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, Clock, Link as LinkIcon, Trophy, UserPlus, Users2 } from "lucide-react";
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import ReactConfetti from 'react-confetti';
 
 // Extend the Game type to include creatorId
 interface Game extends GameBase {
@@ -44,6 +45,24 @@ export default function GamePage() {
   const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [itemInterests, setItemInterests] = useState<ItemInterest[]>([]);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [windowSize, setWindowSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight
+  });
+  const resultsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const { data: game, error: gameError } = useQuery<Game>({
     queryKey: [`/api/games/${id}`],
@@ -255,6 +274,22 @@ export default function GamePage() {
     return priceMatches && allItemsHaveOneInterest && noUnconfirmedInterests && allParticipantsHaveOneItem;
   }, [items, participants, itemInterests, game]);
 
+  // Effect to handle game resolution
+  useEffect(() => {
+    if (isGameResolved) {
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 10000); // Stop confetti after 10 seconds
+      
+      // Scroll to results with a slight delay to ensure DOM is updated
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ 
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }, 100);
+    }
+  }, [isGameResolved]);
+
   // Add reset game mutation
   const resetGame = useMutation({
     mutationFn: async () => {
@@ -383,282 +418,293 @@ export default function GamePage() {
 
   return (
     <div className="min-h-screen bg-background p-4">
+      {showConfetti && (
+        <ReactConfetti
+          width={windowSize.width}
+          height={windowSize.height}
+          recycle={false}
+          numberOfPieces={200}
+          gravity={0.3}
+        />
+      )}
       <div className="max-w-7xl mx-auto space-y-4">
-        <div className="flex justify-between items-center">
-        <Link href="/">
-            <Button variant="ghost" className="text-foreground hover:bg-accent">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
-          </Button>
-        </Link>
-        </div>
-
-        <Card className="mb-4 bg-card border-border">
-          <CardContent className="p-4">
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-2xl font-bold text-foreground mb-2">{game.title}</h1>
-                  <div className="flex items-center gap-4">
-                    <p className="text-lg font-medium text-foreground">
-                      Total: ${Number(game.totalPrice).toFixed(2)}
-                    </p>
-                    {isGameResolved && (
-                      <div className="flex items-center gap-2 text-primary">
-                        <Trophy className="h-5 w-5" />
-                        <span className="font-medium">Game Resolved!</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-              <Button
-                    variant="outline"
-                size="sm"
-                    className="text-foreground hover:bg-accent"
-                onClick={() => {
-                  navigator.clipboard.writeText(gameLink);
-                  toast({ description: "Link copied to clipboard" });
-                }}
-              >
-                <LinkIcon className="h-4 w-4 mr-2" />
-                    Share Game
+        <div ref={resultsRef}>
+          <div className="flex justify-between items-center">
+            <Link href="/">
+              <Button variant="ghost" className="text-foreground hover:bg-accent">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
-            <div className="text-sm text-muted-foreground flex items-center">
-              <Clock className="h-4 w-4 mr-1" />
-              Last active {timeUntilExpiry}
+            </Link>
+          </div>
+
+          <Card className="mb-4 bg-card border-border">
+            <CardContent className="p-4">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-2xl font-bold text-foreground mb-2">{game.title}</h1>
+                    <div className="flex items-center gap-4">
+                      <p className="text-lg font-medium text-foreground">
+                        Total: ${Number(game.totalPrice).toFixed(2)}
+                      </p>
+                      {isGameResolved && (
+                        <div className="flex items-center gap-2 text-primary">
+                          <Trophy className="h-5 w-5" />
+                          <span className="font-medium">Game Resolved!</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-foreground hover:bg-accent"
+                      onClick={() => {
+                        navigator.clipboard.writeText(gameLink);
+                        toast({ description: "Link copied to clipboard" });
+                      }}
+                    >
+                      <LinkIcon className="h-4 w-4 mr-2" />
+                      Share Game
+                    </Button>
+                    <div className="text-sm text-muted-foreground flex items-center">
+                      <Clock className="h-4 w-4 mr-1" />
+                      Last active {timeUntilExpiry}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {isGameResolved ? (
-                <div className="mt-4">
-                  <div className="text-center mb-6">
-                    <h2 className="text-xl font-semibold mb-2 text-foreground">Final Results</h2>
-                    <p className="text-muted-foreground">
-                      All items have been successfully assigned!
-                    </p>
-                  </div>
+                {isGameResolved ? (
+                  <div className="mt-4">
+                    <div className="text-center mb-6">
+                      <h2 className="text-xl font-semibold mb-2 text-foreground">Final Results</h2>
+                      <p className="text-muted-foreground">
+                        All items have been successfully assigned!
+                      </p>
+                    </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {items.map(item => {
-                      const assignedTo = itemInterests.find(interest => 
-                        interest.itemId === item.id && 
-                        !interest.needsConfirmation &&
-                        Math.abs(Number(item.currentPrice) - interest.price) < 0.01
-                      );
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {items.map(item => {
+                        const assignedTo = itemInterests.find(interest => 
+                          interest.itemId === item.id && 
+                          !interest.needsConfirmation &&
+                          Math.abs(Number(item.currentPrice) - interest.price) < 0.01
+                        );
 
-                      if (!assignedTo) return null;
+                        if (!assignedTo) return null;
 
-                      const participantName = getParticipantName(assignedTo.participantId);
+                        const participantName = getParticipantName(assignedTo.participantId);
 
-                      return (
-                        <Card key={item.id} className="overflow-hidden">
-                          <div className="relative aspect-square">
-                            <img
-                              src={item.imageData}
-                              alt={item.title}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-4">
-                              <div className="text-white">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="font-semibold text-base">{participantName}</span>
-                                  <span className="text-white/80">•</span>
-                                  <span className="font-medium">${Number(item.currentPrice).toFixed(2)}</span>
+                        return (
+                          <Card key={item.id} className="overflow-hidden">
+                            <div className="relative aspect-square">
+                              <img
+                                src={item.imageData}
+                                alt={item.title}
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-4">
+                                <div className="text-white">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-semibold text-base">{participantName}</span>
+                                    <span className="text-white/80">•</span>
+                                    <span className="font-medium">${Number(item.currentPrice).toFixed(2)}</span>
+                                  </div>
+                                  <h4 className="text-sm text-white/90 truncate">{item.title}</h4>
                                 </div>
-                                <h4 className="text-sm text-white/90 truncate">{item.title}</h4>
                               </div>
                             </div>
-                          </div>
-                        </Card>
-                      );
-                    })}
-                  </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
 
-                  <div className="mt-6 space-y-3">
-                    {participants?.map(participant => {
-                      const totalSpent = items
-                        .filter(item => 
-                          itemInterests.some(interest => 
-                            interest.itemId === item.id && 
-                            interest.participantId === participant.id &&
-                            !interest.needsConfirmation &&
-                            Math.abs(Number(item.currentPrice) - interest.price) < 0.01
+                    <div className="mt-6 space-y-3">
+                      {participants?.map(participant => {
+                        const totalSpent = items
+                          .filter(item => 
+                            itemInterests.some(interest => 
+                              interest.itemId === item.id && 
+                              interest.participantId === participant.id &&
+                              !interest.needsConfirmation &&
+                              Math.abs(Number(item.currentPrice) - interest.price) < 0.01
+                            )
                           )
-                        )
-                        .reduce((sum, item) => sum + Number(item.currentPrice), 0);
+                          .reduce((sum, item) => sum + Number(item.currentPrice), 0);
 
-                      if (totalSpent === 0) return null;
+                        if (totalSpent === 0) return null;
 
-                      return (
-                        <div key={participant.id} className="flex justify-between items-center px-4 py-2 bg-card rounded-lg border border-border">
-                          <span className="font-medium text-foreground">{participant.name}</span>
-                          <span className="text-muted-foreground">Total: ${totalSpent.toFixed(2)}</span>
-                        </div>
-                      );
-                    })}
+                        return (
+                          <div key={participant.id} className="flex justify-between items-center px-4 py-2 bg-card rounded-lg border border-border">
+                            <span className="font-medium text-foreground">{participant.name}</span>
+                            <span className="text-muted-foreground">Total: ${totalSpent.toFixed(2)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-foreground">Progress to resolution</span>
-                      <span className="text-muted-foreground">
-                        {items?.filter(item => 
+                ) : (
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-foreground">Progress to resolution</span>
+                        <span className="text-muted-foreground">
+                          {items?.filter(item => 
+                            itemInterests.some(interest => 
+                              interest.itemId === item.id && 
+                              Math.abs(interest.price - Number(item.currentPrice)) < 0.01 &&
+                              !interest.needsConfirmation
+                            )
+                          ).length || 0} of {items?.length || 0} items have confirmed buyers
+                        </span>
+                      </div>
+                      <Progress 
+                        value={((items?.filter(item => 
                           itemInterests.some(interest => 
                             interest.itemId === item.id && 
                             Math.abs(interest.price - Number(item.currentPrice)) < 0.01 &&
                             !interest.needsConfirmation
                           )
-                        ).length || 0} of {items?.length || 0} items have confirmed buyers
-                      </span>
+                        ).length || 0) / (items?.length || 1)) * 100} 
+                        className="h-2 bg-secondary"
+                      />
                     </div>
-                    <Progress 
-                      value={((items?.filter(item => 
-                        itemInterests.some(interest => 
-                          interest.itemId === item.id && 
-                          Math.abs(interest.price - Number(item.currentPrice)) < 0.01 &&
-                          !interest.needsConfirmation
-                        )
-                      ).length || 0) / (items?.length || 1)) * 100} 
-                      className="h-2 bg-secondary"
-                    />
-                  </div>
 
-                  <Card className="bg-card border-border">
-                    <CardContent className="p-4">
-                      <h3 className="font-medium mb-3 text-foreground">Actions Needed</h3>
-                      <div className="space-y-2">
-                        {participants?.map(participant => {
-                          // Check if participant has any bids
-                          const hasBids = itemInterests.some(interest => 
-                            interest.participantId === participant.id
-                          );
-
-                          // Check if participant has any interests needing confirmation
-                          const hasUnconfirmedInterests = itemInterests.some(interest => 
-                            interest.participantId === participant.id && 
-                            interest.needsConfirmation
-                          );
-
-                          // Check if participant has been outbid on any items
-                          const outbidItems = items?.filter(item => {
-                            const participantBid = itemInterests.find(interest => 
-                              interest.itemId === item.id && 
-                              interest.participantId === participant.id &&
-                              !interest.needsConfirmation
+                    <Card className="bg-card border-border">
+                      <CardContent className="p-4">
+                        <h3 className="font-medium mb-3 text-foreground">Actions Needed</h3>
+                        <div className="space-y-2">
+                          {participants?.map(participant => {
+                            // Check if participant has any bids
+                            const hasBids = itemInterests.some(interest => 
+                              interest.participantId === participant.id
                             );
-                            const highestBid = itemInterests
-                              .filter(interest => interest.itemId === item.id && !interest.needsConfirmation)
-                              .sort((a, b) => b.price - a.price)[0];
-                            
-                            return participantBid && highestBid && highestBid.price > participantBid.price;
-                          });
 
-                          // Get items that need confirmation
-                          const itemsNeedingConfirmation = items?.filter(item => 
-                            itemInterests.some(interest => 
+                            // Check if participant has any interests needing confirmation
+                            const hasUnconfirmedInterests = itemInterests.some(interest => 
                               interest.participantId === participant.id && 
-                              interest.itemId === item.id &&
+                              interest.needsConfirmation
+                            );
+
+                            // Check if participant has been outbid on any items
+                            const outbidItems = items?.filter(item => {
+                              const participantBid = itemInterests.find(interest => 
+                                interest.itemId === item.id && 
+                                interest.participantId === participant.id &&
+                                !interest.needsConfirmation
+                              );
+                              const highestBid = itemInterests
+                                .filter(interest => interest.itemId === item.id && !interest.needsConfirmation)
+                                .sort((a, b) => b.price - a.price)[0];
+                              
+                              return participantBid && highestBid && highestBid.price > participantBid.price;
+                            });
+
+                            // Get items that need confirmation
+                            const itemsNeedingConfirmation = items?.filter(item => 
+                              itemInterests.some(interest => 
+                                interest.participantId === participant.id && 
+                                interest.itemId === item.id &&
+                                interest.needsConfirmation
+                              )
+                            );
+
+                            if (!hasBids || hasUnconfirmedInterests || outbidItems?.length > 0) {
+                              return (
+                                <div key={participant.id} className="flex items-start gap-2 text-sm">
+                                  <span className="font-medium text-foreground">{participant.name}</span>
+                                  <span className="text-muted-foreground">needs to</span>
+                                  <div className="flex-1">
+                                    {!hasBids && (
+                                      <span className="text-orange-500 dark:text-orange-400">make their first bid</span>
+                                    )}
+                                    {hasUnconfirmedInterests && (
+                                      <div className="text-yellow-500 dark:text-yellow-400">
+                                        confirm new prices for:
+                                        <ul className="ml-2 list-disc list-inside">
+                                          {itemsNeedingConfirmation?.map(item => (
+                                            <li key={item.id}>{item.title}</li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                    {outbidItems && outbidItems.length > 0 && (
+                                      <div className="text-blue-500 dark:text-blue-400">
+                                        increase bid or bid on another item (outbid on: 
+                                        <ul className="ml-2 list-disc list-inside">
+                                          {outbidItems.map(item => (
+                                            <li key={item.id}>{item.title}</li>
+                                          ))}
+                                        </ul>
+                                        )
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })}
+                          {participants?.every(participant => 
+                            itemInterests.some(interest => 
+                              interest.participantId === participant.id
+                            ) &&
+                            !itemInterests.some(interest =>
+                              interest.participantId === participant.id &&
                               interest.needsConfirmation
                             )
-                          );
+                          ) && !itemInterests.some(interest => interest.needsConfirmation) && 
+                          items?.every(item => 
+                            itemInterests.some(interest => 
+                              interest.itemId === item.id && 
+                              !interest.needsConfirmation &&
+                              Math.abs(interest.price - Number(item.currentPrice)) < 0.01
+                            )
+                          ) && (
+                            <div className="text-sm text-muted-foreground">
+                              All players have made their bids. Keep adjusting prices until everyone is satisfied!
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                          if (!hasBids || hasUnconfirmedInterests || outbidItems?.length > 0) {
-                            return (
-                              <div key={participant.id} className="flex items-start gap-2 text-sm">
-                                <span className="font-medium text-foreground">{participant.name}</span>
-                                <span className="text-muted-foreground">needs to</span>
-                                <div className="flex-1">
-                                  {!hasBids && (
-                                    <span className="text-orange-500 dark:text-orange-400">make their first bid</span>
-                                  )}
-                                  {hasUnconfirmedInterests && (
-                                    <div className="text-yellow-500 dark:text-yellow-400">
-                                      confirm new prices for:
-                                      <ul className="ml-2 list-disc list-inside">
-                                        {itemsNeedingConfirmation?.map(item => (
-                                          <li key={item.id}>{item.title}</li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  )}
-                                  {outbidItems && outbidItems.length > 0 && (
-                                    <div className="text-blue-500 dark:text-blue-400">
-                                      increase bid or bid on another item (outbid on: 
-                                      <ul className="ml-2 list-disc list-inside">
-                                        {outbidItems.map(item => (
-                                          <li key={item.id}>{item.title}</li>
-                                        ))}
-                                      </ul>
-                                      )
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })}
-                        {participants?.every(participant => 
-                          itemInterests.some(interest => 
-                            interest.participantId === participant.id
-                          ) &&
-                          !itemInterests.some(interest =>
-                            interest.participantId === participant.id &&
-                            interest.needsConfirmation
-                          )
-                        ) && !itemInterests.some(interest => interest.needsConfirmation) && 
-                        items?.every(item => 
-                          itemInterests.some(interest => 
-                            interest.itemId === item.id && 
-                            !interest.needsConfirmation &&
-                            Math.abs(interest.price - Number(item.currentPrice)) < 0.01
-                          )
-                        ) && (
-                          <div className="text-sm text-muted-foreground">
-                            All players have made their bids. Keep adjusting prices until everyone is satisfied!
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <div className="text-sm space-y-2">
-                    <div className="font-medium text-foreground">Current Item Interests:</div>
-                    <div className="text-muted-foreground space-y-1">
-                      {items?.map(item => (
-                        <div key={item.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50">
-                          <span className="truncate">{item.title}:</span>
-                          <div className="flex items-center gap-2">
-                            {itemInterests
-                              .filter(interest => 
+                    <div className="text-sm space-y-2">
+                      <div className="font-medium text-foreground">Current Item Interests:</div>
+                      <div className="text-muted-foreground space-y-1">
+                        {items?.map(item => (
+                          <div key={item.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50">
+                            <span className="truncate">{item.title}:</span>
+                            <div className="flex items-center gap-2">
+                              {itemInterests
+                                .filter(interest => 
+                                  interest.itemId === item.id && 
+                                  Math.abs(interest.price - Number(item.currentPrice)) < 0.01
+                                )
+                                .map(interest => (
+                                  <div key={interest.participantId} className="flex items-center gap-1">
+                                    <span>{getParticipantName(interest.participantId)}</span>
+                                    {interest.needsConfirmation && (
+                                      <span className="text-yellow-500 dark:text-yellow-400">(needs confirmation)</span>
+                                    )}
+                                  </div>
+                                ))}
+                              {!itemInterests.some(interest => 
                                 interest.itemId === item.id && 
                                 Math.abs(interest.price - Number(item.currentPrice)) < 0.01
-                              )
-                              .map(interest => (
-                                <div key={interest.participantId} className="flex items-center gap-1">
-                                  <span>{getParticipantName(interest.participantId)}</span>
-                                  {interest.needsConfirmation && (
-                                    <span className="text-yellow-500 dark:text-yellow-400">(needs confirmation)</span>
-                                  )}
-                                </div>
-                              ))}
-                            {!itemInterests.some(interest => 
-                              interest.itemId === item.id && 
-                              Math.abs(interest.price - Number(item.currentPrice)) < 0.01
-                            ) && "No interest"}
+                              ) && "No interest"}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         {!isGameResolved && (
           <>
@@ -725,7 +771,7 @@ export default function GamePage() {
                       </Button>
                     ))}
                   </div>
-            </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -743,18 +789,18 @@ export default function GamePage() {
 
                 return (
                   <div key={item.id} className="w-full max-w-2xl mx-auto">
-                  <ItemCard
-                    item={item}
-                    items={items}
-                    onPriceChange={(price) => {
+                    <ItemCard
+                      item={item}
+                      items={items}
+                      onPriceChange={(price) => {
                         if (editingItemId === item.id) {
                           calculatePriceChanges(item.id, price);
                         } else {
                           // This is a confirmation of new price
                           confirmInterest.mutate({ itemId: item.id });
                         }
-                    }}
-                    isEditing={editingItemId === item.id}
+                      }}
+                      isEditing={editingItemId === item.id}
                       onStartEdit={() => {
                         if (!currentParticipant) {
                           toast({
@@ -783,7 +829,7 @@ export default function GamePage() {
                   </div>
                 );
               })}
-                        </div>
+            </div>
 
             {Object.keys(previewPrices).length > 0 && (
               <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2">
@@ -830,7 +876,7 @@ export default function GamePage() {
                     </div>
                   </CardContent>
                 </Card>
-                  </div>
+              </div>
             )}
           </>
         )}
@@ -857,9 +903,9 @@ export default function GamePage() {
                 >
                   Reset Game
                 </Button>
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>
