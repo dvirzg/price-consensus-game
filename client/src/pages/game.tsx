@@ -385,11 +385,11 @@ export default function GamePage() {
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-7xl mx-auto space-y-4">
         <div className="flex justify-between items-center">
-          <Link href="/">
+        <Link href="/">
             <Button variant="ghost" className="text-foreground hover:bg-accent">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back
-            </Button>
-          </Link>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back
+          </Button>
+        </Link>
         </div>
 
         <Card className="mb-4 bg-card border-border">
@@ -411,21 +411,21 @@ export default function GamePage() {
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  <Button
+              <Button
                     variant="outline"
-                    size="sm"
+                size="sm"
                     className="text-foreground hover:bg-accent"
-                    onClick={() => {
-                      navigator.clipboard.writeText(gameLink);
-                      toast({ description: "Link copied to clipboard" });
-                    }}
-                  >
-                    <LinkIcon className="h-4 w-4 mr-2" />
+                onClick={() => {
+                  navigator.clipboard.writeText(gameLink);
+                  toast({ description: "Link copied to clipboard" });
+                }}
+              >
+                <LinkIcon className="h-4 w-4 mr-2" />
                     Share Game
-                  </Button>
-                  <div className="text-sm text-muted-foreground flex items-center">
-                    <Clock className="h-4 w-4 mr-1" />
-                    Last active {timeUntilExpiry}
+              </Button>
+            <div className="text-sm text-muted-foreground flex items-center">
+              <Clock className="h-4 w-4 mr-1" />
+              Last active {timeUntilExpiry}
                   </div>
                 </div>
               </div>
@@ -542,6 +542,20 @@ export default function GamePage() {
                             interest.needsConfirmation
                           );
 
+                          // Check if participant has been outbid on any items
+                          const outbidItems = items?.filter(item => {
+                            const participantBid = itemInterests.find(interest => 
+                              interest.itemId === item.id && 
+                              interest.participantId === participant.id &&
+                              !interest.needsConfirmation
+                            );
+                            const highestBid = itemInterests
+                              .filter(interest => interest.itemId === item.id && !interest.needsConfirmation)
+                              .sort((a, b) => b.price - a.price)[0];
+                            
+                            return participantBid && highestBid && highestBid.price > participantBid.price;
+                          });
+
                           // Get items that need confirmation
                           const itemsNeedingConfirmation = items?.filter(item => 
                             itemInterests.some(interest => 
@@ -551,7 +565,7 @@ export default function GamePage() {
                             )
                           );
 
-                          if (!hasBids || hasUnconfirmedInterests) {
+                          if (!hasBids || hasUnconfirmedInterests || outbidItems?.length > 0) {
                             return (
                               <div key={participant.id} className="flex items-start gap-2 text-sm">
                                 <span className="font-medium text-foreground">{participant.name}</span>
@@ -568,6 +582,17 @@ export default function GamePage() {
                                           <li key={item.id}>{item.title}</li>
                                         ))}
                                       </ul>
+                                    </div>
+                                  )}
+                                  {outbidItems && outbidItems.length > 0 && (
+                                    <div className="text-blue-500 dark:text-blue-400">
+                                      increase bid or bid on another item (outbid on: 
+                                      <ul className="ml-2 list-disc list-inside">
+                                        {outbidItems.map(item => (
+                                          <li key={item.id}>{item.title}</li>
+                                        ))}
+                                      </ul>
+                                      )
                                     </div>
                                   )}
                                 </div>
@@ -700,7 +725,7 @@ export default function GamePage() {
                       </Button>
                     ))}
                   </div>
-                </div>
+            </div>
               </CardContent>
             </Card>
 
@@ -718,18 +743,18 @@ export default function GamePage() {
 
                 return (
                   <div key={item.id} className="w-full max-w-2xl mx-auto">
-                    <ItemCard
-                      item={item}
-                      items={items}
-                      onPriceChange={(price) => {
+                  <ItemCard
+                    item={item}
+                    items={items}
+                    onPriceChange={(price) => {
                         if (editingItemId === item.id) {
                           calculatePriceChanges(item.id, price);
                         } else {
                           // This is a confirmation of new price
                           confirmInterest.mutate({ itemId: item.id });
                         }
-                      }}
-                      isEditing={editingItemId === item.id}
+                    }}
+                    isEditing={editingItemId === item.id}
                       onStartEdit={() => {
                         if (!currentParticipant) {
                           toast({
@@ -758,7 +783,7 @@ export default function GamePage() {
                   </div>
                 );
               })}
-            </div>
+                        </div>
 
             {Object.keys(previewPrices).length > 0 && (
               <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2">
@@ -805,7 +830,7 @@ export default function GamePage() {
                     </div>
                   </CardContent>
                 </Card>
-              </div>
+                  </div>
             )}
           </>
         )}

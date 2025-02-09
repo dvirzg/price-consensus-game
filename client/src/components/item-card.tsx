@@ -48,9 +48,26 @@ export default function ItemCard({
   // Sort bids by price in descending order
   const sortedBids = [...bids].sort((a, b) => b.price - a.price);
 
+  const highestBidPrice = sortedBids.length > 0 ? sortedBids[0].price : 0;
+
   const handlePriceStep = (amount: number) => {
     const step = direction === "up" ? amount : -amount;
-    const newPrice = Number(item.currentPrice) + step;
+    let newPrice;
+    
+    if (bids.length === 0) {
+      // If no bids, allow any price change
+      newPrice = Number(item.currentPrice) + step;
+    } else {
+      // If there are bids, must be higher than user's previous bid
+      const userPreviousBid = currentUserBid?.price || 0;
+      newPrice = Number(item.currentPrice) + step;
+      
+      // Ensure new price is at least as high as user's previous bid
+      if (newPrice < userPreviousBid) {
+        return;
+      }
+    }
+    
     if (newPrice >= 0) {
       setLocalPreviewPrice(newPrice);
       onPriceChange(newPrice);
@@ -60,9 +77,24 @@ export default function ItemCard({
   const handleManualPriceChange = (value: string) => {
     setManualPrice(value);
     const numericPrice = parseFloat(value);
-    if (!isNaN(numericPrice) && numericPrice >= 0) {
+    if (!isNaN(numericPrice)) {
       const step = direction === "up" ? numericPrice : -numericPrice;
-      const newPrice = Number(item.currentPrice) + step;
+      let newPrice;
+      
+      if (bids.length === 0) {
+        // If no bids, allow any price change
+        newPrice = Number(item.currentPrice) + step;
+      } else {
+        // If there are bids, must be higher than user's previous bid
+        const userPreviousBid = currentUserBid?.price || 0;
+        newPrice = Number(item.currentPrice) + step;
+        
+        // Ensure new price is at least as high as user's previous bid
+        if (newPrice < userPreviousBid) {
+          return;
+        }
+      }
+      
       if (newPrice >= 0) {
         setLocalPreviewPrice(newPrice);
         onPriceChange(newPrice);
@@ -183,13 +215,21 @@ export default function ItemCard({
                 <p className="text-base text-yellow-500">
                   Price has increased. Please confirm your interest at the new price.
                 </p>
-                <div className="mt-3">
+                <div className="mt-3 flex gap-2">
                   <Button
                     size="lg"
-                    className="w-full bg-yellow-500 hover:bg-yellow-600 text-white h-12"
+                    className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white h-11"
                     onClick={() => onPriceChange(Number(item.currentPrice))}
                   >
                     Confirm
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="flex-1 hover:bg-accent h-11"
+                    onClick={() => onStartEdit()}
+                  >
+                    Adjust Price
                   </Button>
                 </div>
               </div>
@@ -199,20 +239,32 @@ export default function ItemCard({
               <div className="flex justify-between items-center">
                 <span className="text-base font-medium text-foreground">Current Bids</span>
                 {!currentUserBid && (
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="hover:bg-accent h-11 px-6"
-                    onClick={() => onStartEdit()}
-                  >
-                    Place Bid
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {bids.length === 0 && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-9 whitespace-nowrap"
+                        onClick={() => onPriceChange(Number(item.currentPrice))}
+                      >
+                        Bid Current Price
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 whitespace-nowrap"
+                      onClick={() => onStartEdit()}
+                    >
+                      {bids.length === 0 ? "Custom Bid" : "Place Bid"}
+                    </Button>
+                  </div>
                 )}
               </div>
               
               <div className="space-y-2">
                 {bids.length > 0 ? (
-                  bids.map((bid) => (
+                  sortedBids.map((bid) => (
                     <div
                       key={bid.userId}
                       className="flex justify-between items-center p-3 rounded-xl bg-accent/50 text-base"
@@ -243,7 +295,7 @@ export default function ItemCard({
                 className="w-full hover:bg-accent h-12 text-base"
                 onClick={() => onStartEdit()}
               >
-                Update Bid
+                Increase Bid
               </Button>
             )}
           </div>
