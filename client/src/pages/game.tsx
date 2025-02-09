@@ -674,18 +674,6 @@ export default function GamePage() {
           </div>
         )}
 
-        {/* Add debug information */}
-        <Card className="mb-4">
-          <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">
-              <p>Debug Info:</p>
-              <p>Current Participant ID: {currentParticipant?.id}</p>
-              <p>Game Creator ID: {game.creatorId}</p>
-              <p>Is Creator: {currentParticipant?.id === game.creatorId ? 'Yes' : 'No'}</p>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Add Reset Game section at the bottom */}
         {currentParticipant?.id === game.creatorId && (
           <Card className="mt-8 border-destructive">

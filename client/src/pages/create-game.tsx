@@ -16,7 +16,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-import { X, Plus, ArrowLeft, Upload } from "lucide-react";
+import { X, Plus, ArrowLeft, Upload, ImagePlus } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { z } from "zod";
 
@@ -115,6 +115,38 @@ export default function CreateGame() {
     setItems(newItems);
   };
 
+  const handleBulkImageUpload = async (files: FileList) => {
+    try {
+      const promises = Array.from(files).map((file, index) => {
+        return new Promise<ItemWithPreview>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            resolve({
+              title: `Item #${items.length + index + 1}`,
+              imageData: e.target?.result as string,
+              previewUrl: URL.createObjectURL(file)
+            });
+          };
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        });
+      });
+
+      const newItems = await Promise.all(promises);
+      setItems(prev => [...prev, ...newItems]);
+      toast({ 
+        title: "Success", 
+        description: `Added ${files.length} new item${files.length === 1 ? '' : 's'}` 
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to upload images",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-md mx-auto space-y-4">
@@ -197,7 +229,44 @@ export default function CreateGame() {
                 />
 
                 <div className="space-y-4">
-                  <h3 className="text-sm font-medium">Items</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium">Items</h3>
+                    <div className="flex gap-2">
+                      <div className="relative group">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          onChange={(e) => {
+                            const files = e.target.files;
+                            if (files && files.length > 0) {
+                              handleBulkImageUpload(files);
+                              e.target.value = ''; // Reset the input
+                            }
+                          }}
+                        />
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm"
+                          className="pointer-events-none group-hover:bg-accent group-hover:text-accent-foreground"
+                        >
+                          <ImagePlus className="h-4 w-4 mr-2" />
+                          Add Multiple Items
+                        </Button>
+                      </div>
+                      <Button 
+                        type="button" 
+                        variant="outline"
+                        size="sm"
+                        onClick={addItem}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Single Item
+                      </Button>
+                    </div>
+                  </div>
 
                   <div className="grid gap-6 sm:grid-cols-1">
                     {items.map((item, index) => (
@@ -248,15 +317,6 @@ export default function CreateGame() {
                       </div>
                     ))}
                   </div>
-
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={addItem}
-                    className="w-full mt-4"
-                  >
-                    <Plus className="h-4 w-4 mr-2" /> Add Item
-                  </Button>
                 </div>
 
                 <Button
