@@ -6,10 +6,25 @@ import cors from "cors";
 const app = express();
 
 // CORS configuration
+const allowedOrigins = [
+  'http://localhost:5173',  // Development frontend
+  'https://dvirzg.github.io' // Production frontend
+];
+
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || "https://dvirzg.github.io",
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 };
+
 app.use(cors(corsOptions));
 
 app.use(express.json({ limit: '50mb' }));
