@@ -669,9 +669,9 @@ export default function GamePage() {
                               All players have made their bids. Keep adjusting prices until everyone is satisfied!
                             </div>
                           )}
-                        </div>
-                      </CardContent>
-                    </Card>
+            </div>
+          </CardContent>
+        </Card>
 
                     <div className="text-sm space-y-2">
                       <div className="font-medium text-foreground">Current Item Interests:</div>
@@ -791,7 +791,7 @@ export default function GamePage() {
                       </Button>
                     ))}
                   </div>
-                </div>
+            </div>
               </CardContent>
             </Card>
 
@@ -923,9 +923,9 @@ export default function GamePage() {
                 >
                   Reset Game
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
         )}
       </div>
     </div>
