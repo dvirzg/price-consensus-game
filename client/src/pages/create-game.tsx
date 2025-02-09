@@ -191,7 +191,7 @@ export default function CreateGame() {
                           type="number"
                           step="0.01"
                           {...field}
-                          className="w-full"
+                          className="w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           onChange={(e) => field.onChange(parseFloat(e.target.value))}
                         />
                       </FormControl>
