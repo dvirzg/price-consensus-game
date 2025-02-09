@@ -68,7 +68,8 @@ export default function CreateGame() {
   });
 
   const addItem = () => {
-    setItems([...items, { title: "", imageData: "", previewUrl: undefined }]);
+    const newItemNumber = items.length + 1;
+    setItems([...items, { title: `Item #${newItemNumber}`, imageData: "", previewUrl: undefined }]);
   };
 
   const removeItem = (index: number) => {
@@ -112,7 +113,7 @@ export default function CreateGame() {
           </Button>
         </Link>
 
-        <Card>
+        <Card className="w-full">
           <CardHeader>
             <CardTitle>Create New Game</CardTitle>
           </CardHeader>
@@ -120,7 +121,7 @@ export default function CreateGame() {
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit((data) => createGame.mutate(data))}
-                className="space-y-4"
+                className="space-y-6"
               >
                 <FormField
                   control={form.control}
@@ -129,7 +130,7 @@ export default function CreateGame() {
                     <FormItem>
                       <FormLabel>Game Title</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field} className="w-full" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -147,6 +148,7 @@ export default function CreateGame() {
                           type="number"
                           step="0.01"
                           {...field}
+                          className="w-full"
                           onChange={(e) => field.onChange(parseFloat(e.target.value))}
                         />
                       </FormControl>
@@ -156,23 +158,30 @@ export default function CreateGame() {
                 />
 
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-sm font-medium">Items</h3>
-                    <Button type="button" variant="outline" onClick={addItem}>
-                      <Plus className="h-4 w-4 mr-2" /> Add Item
-                    </Button>
-                  </div>
+                  <h3 className="text-sm font-medium">Items</h3>
 
-                  {items.map((item, index) => (
-                    <div key={index} className="space-y-2 p-4 border rounded-lg">
-                      <Input
-                        placeholder="Item Title"
-                        value={item.title}
-                        onChange={(e) => updateItemTitle(index, e.target.value)}
-                      />
+                  <div className="grid gap-6 sm:grid-cols-1">
+                    {items.map((item, index) => (
+                      <div key={index} className="space-y-3 p-4 border rounded-lg bg-white shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <Input
+                            placeholder="Item Title"
+                            value={item.title}
+                            className="flex-1 mr-2"
+                            onChange={(e) => updateItemTitle(index, e.target.value)}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="shrink-0"
+                            onClick={() => removeItem(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
 
-                      <div className="flex gap-2 items-center">
-                        <label className="flex-1 cursor-pointer">
+                        <label className="block cursor-pointer">
                           <div className="relative border rounded-lg p-4 hover:bg-gray-50 transition-colors">
                             <input
                               type="file"
@@ -187,32 +196,33 @@ export default function CreateGame() {
                               <img
                                 src={item.previewUrl}
                                 alt={item.title}
-                                className="w-full h-32 object-cover rounded"
+                                className="w-full h-40 sm:h-48 object-cover rounded"
                               />
                             ) : (
-                              <div className="flex flex-col items-center justify-center h-32 text-gray-500">
+                              <div className="flex flex-col items-center justify-center h-40 sm:h-48 text-gray-500 bg-gray-50 rounded">
                                 <Upload className="h-8 w-8 mb-2" />
-                                <span className="text-sm">Upload Image</span>
+                                <span className="text-sm text-center">Tap to Upload Image</span>
                               </div>
                             )}
                           </div>
                         </label>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeItem(index)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={addItem}
+                    className="w-full mt-4"
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Add Item
+                  </Button>
                 </div>
 
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full mt-8"
                   disabled={items.length === 0 || createGame.isPending}
                 >
                   Create Game
