@@ -8,8 +8,9 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Get the repository name from package.json or environment variable
-const base = process.env.NODE_ENV === 'production' ? '/consensus-game/' : '/';
+// Get the repository name from environment variable or default to your repo name
+const repoName = process.env.GITHUB_REPOSITORY?.split('/')[1] || 'price-consensus-game';
+const base = process.env.NODE_ENV === 'production' ? `/${repoName}/` : '/';
 
 export default defineConfig({
   plugins: [react(), runtimeErrorOverlay(), themePlugin()],
