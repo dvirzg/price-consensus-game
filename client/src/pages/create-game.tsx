@@ -16,13 +16,19 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-import { X, Plus, ArrowLeft } from "lucide-react";
+import { X, Plus, ArrowLeft, Upload } from "lucide-react";
 import { Link, useLocation } from "wouter";
+
+interface ItemWithPreview {
+  title: string;
+  imageData: string;
+  previewUrl?: string;
+}
 
 export default function CreateGame() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const [items, setItems] = useState<{ title: string; imageUrl: string }[]>([]);
+  const [items, setItems] = useState<ItemWithPreview[]>([]);
 
   const form = useForm({
     resolver: zodResolver(insertGameSchema),
@@ -36,15 +42,16 @@ export default function CreateGame() {
     mutationFn: async (data: { title: string; totalPrice: number }) => {
       const game = await apiRequest("POST", "/api/games", data);
       const gameData = await game.json();
-      
+
       // Create items
       for (const item of items) {
         await apiRequest("POST", `/api/games/${gameData.id}/items`, {
-          ...item,
+          title: item.title,
+          imageData: item.imageData,
           currentPrice: data.totalPrice / items.length,
         });
       }
-      
+
       return gameData;
     },
     onSuccess: (data) => {
@@ -61,16 +68,38 @@ export default function CreateGame() {
   });
 
   const addItem = () => {
-    setItems([...items, { title: "", imageUrl: "" }]);
+    setItems([...items, { title: "", imageData: "", previewUrl: undefined }]);
   };
 
   const removeItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
   };
 
-  const updateItem = (index: number, field: string, value: string) => {
+  const handleImageUpload = async (index: number, file: File) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const newItems = [...items];
+        newItems[index] = {
+          ...newItems[index],
+          imageData: e.target?.result as string,
+          previewUrl: URL.createObjectURL(file),
+        };
+        setItems(newItems);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to upload image",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateItemTitle = (index: number, title: string) => {
     const newItems = [...items];
-    newItems[index] = { ...newItems[index], [field]: value };
+    newItems[index] = { ...newItems[index], title };
     setItems(newItems);
   };
 
@@ -116,10 +145,9 @@ export default function CreateGame() {
                       <FormControl>
                         <Input
                           type="number"
+                          step="0.01"
                           {...field}
-                          onChange={(e) =>
-                            field.onChange(parseFloat(e.target.value))
-                          }
+                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
                         />
                       </FormControl>
                       <FormMessage />
@@ -136,29 +164,48 @@ export default function CreateGame() {
                   </div>
 
                   {items.map((item, index) => (
-                    <div key={index} className="flex gap-2">
+                    <div key={index} className="space-y-2 p-4 border rounded-lg">
                       <Input
                         placeholder="Item Title"
                         value={item.title}
-                        onChange={(e) =>
-                          updateItem(index, "title", e.target.value)
-                        }
+                        onChange={(e) => updateItemTitle(index, e.target.value)}
                       />
-                      <Input
-                        placeholder="Image URL"
-                        value={item.imageUrl}
-                        onChange={(e) =>
-                          updateItem(index, "imageUrl", e.target.value)
-                        }
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeItem(index)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+
+                      <div className="flex gap-2 items-center">
+                        <label className="flex-1 cursor-pointer">
+                          <div className="relative border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleImageUpload(index, file);
+                              }}
+                            />
+                            {item.previewUrl ? (
+                              <img
+                                src={item.previewUrl}
+                                alt={item.title}
+                                className="w-full h-32 object-cover rounded"
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center h-32 text-gray-500">
+                                <Upload className="h-8 w-8 mb-2" />
+                                <span className="text-sm">Upload Image</span>
+                              </div>
+                            )}
+                          </div>
+                        </label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeItem(index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>

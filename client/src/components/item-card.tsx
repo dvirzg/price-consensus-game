@@ -13,7 +13,7 @@ export default function ItemCard({ item, onPriceChange }: ItemCardProps) {
       <CardContent className="p-4">
         <div className="flex items-center gap-4">
           <img
-            src={item.imageUrl}
+            src={item.imageData}
             alt={item.title}
             className="w-16 h-16 object-cover rounded-lg"
           />
@@ -21,11 +21,11 @@ export default function ItemCard({ item, onPriceChange }: ItemCardProps) {
             <h3 className="font-medium mb-2">{item.title}</h3>
             <div className="flex items-center gap-4">
               <PriceSlider
-                value={item.currentPrice}
+                value={Number(item.currentPrice)}
                 onChange={onPriceChange}
               />
               <div className="w-20 text-right">
-                ${item.currentPrice.toFixed(2)}
+                ${Number(item.currentPrice).toFixed(2)}
               </div>
             </div>
           </div>

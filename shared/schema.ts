@@ -15,7 +15,7 @@ export const items = pgTable("items", {
   id: serial("id").primaryKey(),
   gameId: integer("game_id").references(() => games.id).notNull(),
   title: text("title").notNull(),
-  imageUrl: text("image_url").notNull(),
+  imageData: text("image_data").notNull(), // Store base64 image data
   currentPrice: decimal("current_price", { precision: 10, scale: 2 }).notNull(),
 });
 
@@ -26,14 +26,18 @@ export const participants = pgTable("participants", {
   email: text("email"),
 });
 
-export const insertGameSchema = createInsertSchema(games).omit({ 
+export const insertGameSchema = createInsertSchema(games).extend({
+  totalPrice: z.number().min(0.01, "Total price must be greater than 0"),
+}).omit({ 
   id: true,
   createdAt: true,
   lastActive: true,
   status: true 
 });
 
-export const insertItemSchema = createInsertSchema(items).omit({ 
+export const insertItemSchema = createInsertSchema(items).extend({
+  currentPrice: z.number().min(0),
+}).omit({ 
   id: true,
   gameId: true 
 });
