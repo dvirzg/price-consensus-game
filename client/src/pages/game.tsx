@@ -382,17 +382,18 @@ export default function GamePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-background p-4">
       <div className="max-w-7xl mx-auto space-y-4">
         <div className="flex justify-between items-center">
-        <Link href="/">
-          <Button variant="ghost">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
-          </Button>
-        </Link>
+          <Link href="/">
+            <Button variant="ghost" className="text-foreground hover:bg-accent">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            </Button>
+          </Link>
           <Button
             variant="ghost"
             size="sm"
+            className="text-foreground hover:bg-accent"
             onClick={() => {
               navigator.clipboard.writeText(gameLink);
               toast({ description: "Link copied to clipboard" });
@@ -403,17 +404,17 @@ export default function GamePage() {
           </Button>
         </div>
 
-        <Card className="mb-4">
+        <Card className="mb-4 bg-card border-border">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold mb-2">{game.title}</h1>
+                <h1 className="text-2xl font-bold text-foreground mb-2">{game.title}</h1>
                 <div className="flex items-center gap-4">
-                  <p className="text-lg font-medium">
+                  <p className="text-lg font-medium text-foreground">
                     Total: ${Number(game.totalPrice).toFixed(2)}
                   </p>
                   {isGameResolved && (
-                    <div className="flex items-center gap-2 text-green-600">
+                    <div className="flex items-center gap-2 text-primary">
                       <Trophy className="h-5 w-5" />
                       <span className="font-medium">Game Resolved!</span>
                     </div>
@@ -421,28 +422,17 @@ export default function GamePage() {
                 </div>
               </div>
               <div className="text-sm text-right">
-                <div className="flex items-center justify-end mb-1">
+                <div className="flex items-center justify-end mb-1 text-muted-foreground">
                   <Clock className="h-4 w-4 mr-1" />
                   Last active {timeUntilExpiry}
                 </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  navigator.clipboard.writeText(gameLink);
-                  toast({ description: "Link copied to clipboard" });
-                }}
-              >
-                <LinkIcon className="h-4 w-4 mr-2" />
-                  Share Game
-                </Button>
               </div>
             </div>
 
             {isGameResolved ? (
               <div className="mt-4">
                 <div className="text-center mb-6">
-                  <h2 className="text-xl font-semibold mb-2">Final Results</h2>
+                  <h2 className="text-xl font-semibold mb-2 text-foreground">Final Results</h2>
                   <p className="text-muted-foreground">
                     All items have been successfully assigned!
                   </p>
@@ -500,8 +490,8 @@ export default function GamePage() {
                     if (totalSpent === 0) return null;
 
                     return (
-                      <div key={participant.id} className="flex justify-between items-center px-4 py-2 bg-white rounded-lg shadow-sm">
-                        <span className="font-medium">{participant.name}</span>
+                      <div key={participant.id} className="flex justify-between items-center px-4 py-2 bg-card rounded-lg border border-border">
+                        <span className="font-medium text-foreground">{participant.name}</span>
                         <span className="text-muted-foreground">Total: ${totalSpent.toFixed(2)}</span>
                       </div>
                     );
@@ -512,7 +502,7 @@ export default function GamePage() {
               <div className="mt-4 space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-2">
-                    <span>Progress to resolution</span>
+                    <span className="text-foreground">Progress to resolution</span>
                     <span className="text-muted-foreground">
                       {items?.filter(item => 
                         itemInterests.some(interest => 
@@ -531,13 +521,13 @@ export default function GamePage() {
                         !interest.needsConfirmation
                       )
                     ).length || 0) / (items?.length || 1)) * 100} 
-                    className="h-2"
+                    className="h-2 bg-secondary"
                   />
                 </div>
 
-                <Card className="bg-orange-50/50">
+                <Card className="bg-card border-border">
                   <CardContent className="p-4">
-                    <h3 className="font-medium mb-3">Actions Needed</h3>
+                    <h3 className="font-medium mb-3 text-foreground">Actions Needed</h3>
                     <div className="space-y-2">
                       {participants?.map(participant => {
                         // Check if participant has any bids
@@ -563,14 +553,14 @@ export default function GamePage() {
                         if (!hasBids || hasUnconfirmedInterests) {
                           return (
                             <div key={participant.id} className="flex items-start gap-2 text-sm">
-                              <span className="font-medium">{participant.name}</span>
+                              <span className="font-medium text-foreground">{participant.name}</span>
                               <span className="text-muted-foreground">needs to</span>
                               <div className="flex-1">
                                 {!hasBids && (
-                                  <span className="text-orange-600">make their first bid</span>
+                                  <span className="text-orange-500 dark:text-orange-400">make their first bid</span>
                                 )}
                                 {hasUnconfirmedInterests && (
-                                  <div className="text-yellow-600">
+                                  <div className="text-yellow-500 dark:text-yellow-400">
                                     confirm new prices for:
                                     <ul className="ml-2 list-disc list-inside">
                                       {itemsNeedingConfirmation?.map(item => (
@@ -610,10 +600,10 @@ export default function GamePage() {
                 </Card>
 
                 <div className="text-sm space-y-2">
-                  <div className="font-medium">Current Item Interests:</div>
-                  <div className="text-muted-foreground">
+                  <div className="font-medium text-foreground">Current Item Interests:</div>
+                  <div className="text-muted-foreground space-y-1">
                     {items?.map(item => (
-                      <div key={item.id} className="flex items-center justify-between">
+                      <div key={item.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50">
                         <span className="truncate">{item.title}:</span>
                         <div className="flex items-center gap-2">
                           {itemInterests
@@ -625,7 +615,7 @@ export default function GamePage() {
                               <div key={interest.participantId} className="flex items-center gap-1">
                                 <span>{getParticipantName(interest.participantId)}</span>
                                 {interest.needsConfirmation && (
-                                  <span className="text-yellow-500">(needs confirmation)</span>
+                                  <span className="text-yellow-500 dark:text-yellow-400">(needs confirmation)</span>
                                 )}
                               </div>
                             ))}
@@ -645,12 +635,12 @@ export default function GamePage() {
 
         {!isGameResolved && (
           <>
-            <Card className="mb-4">
+            <Card className="mb-4 bg-card">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <Users2 className="h-5 w-5" />
-                    <h2 className="text-lg font-medium">Players</h2>
+                    <Users2 className="h-5 w-5 text-primary" />
+                    <h2 className="text-lg font-medium text-foreground">Players</h2>
                   </div>
                   <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
                     <DialogTrigger asChild>
@@ -820,7 +810,7 @@ export default function GamePage() {
 
         {/* Add Reset Game section at the bottom */}
         {currentParticipant?.id === game.creatorId && (
-          <Card className="mt-8 border-destructive">
+          <Card className="mt-8 border-destructive bg-card">
             <CardHeader>
               <CardTitle className="text-destructive">Game Controls</CardTitle>
             </CardHeader>
@@ -831,7 +821,7 @@ export default function GamePage() {
                 </p>
                 <Button
                   variant="destructive"
-                  className="w-full"
+                  className="w-full hover:bg-destructive/90"
                   onClick={() => {
                     if (window.confirm("Are you sure you want to reset the game? This will clear all bids and reset prices to equal distribution.")) {
                       resetGame.mutate();
