@@ -23,7 +23,7 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen bg-[#f5f5f5] dark:bg-[#1a1a1a] text-foreground overflow-hidden">
+    <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#1a1a1a] text-foreground">
       {/* iOS-style blurred background shapes */}
       <div className="fixed inset-0 -z-10">
         <div className="absolute top-0 -left-[25%] w-[50%] h-[50%] rounded-full bg-primary/20 blur-[128px]" />
@@ -32,36 +32,50 @@ export default function Home() {
         <div className="absolute inset-0 bg-[radial-gradient(circle,_rgba(0,0,0,0.15)_2px,_transparent_2px)] [background-size:24px_24px] dark:bg-[radial-gradient(circle,_rgba(255,255,255,0.15)_2px,_transparent_2px)]" />
       </div>
 
-      <div className="h-full flex flex-col items-center justify-between py-8 px-6">
+      <div className="min-h-screen flex flex-col items-center justify-between py-6 sm:py-8 px-4 sm:px-6">
         {/* Hero Section */}
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold tracking-tight leading-tight">
+        <div className="text-center space-y-4 sm:space-y-6 w-full max-w-2xl mx-auto">
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight leading-tight px-4">
             Price Consensus Game
           </h1>
           
           {/* Visual Description */}
-          <div className="flex items-center justify-center gap-2 text-lg text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <DollarSign className="h-5 w-5 text-primary" />
-              <span>$100</span>
-            </div>
-            <ArrowRightIcon className="h-4 w-4 text-muted-foreground/50" />
-            <div className="flex items-center gap-1">
-              <SplitSquareHorizontal className="h-5 w-5 text-primary" />
-              <span>3 Items</span>
-            </div>
-            <ArrowRightIcon className="h-4 w-4 text-muted-foreground/50" />
-            <div className="flex items-center gap-1">
-              <Users2 className="h-5 w-5 text-primary" />
-              <span>Fair Split</span>
+          <div className="space-y-4 px-2">
+            <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">
+              A collaborative game where players work together to fairly distribute items within a shared budget
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 text-base">
+              <div className="flex flex-col items-center gap-2 px-4">
+                <div className="flex items-center gap-2 text-primary font-medium">
+                  <DollarSign className="h-5 w-5" />
+                  <span>Set Budget</span>
+                </div>
+                <span className="text-sm text-muted-foreground">Start with a fixed total budget</span>
+              </div>
+              <div className="hidden sm:block h-8 w-px bg-border" />
+              <div className="flex flex-col items-center gap-2 px-4">
+                <div className="flex items-center gap-2 text-primary font-medium">
+                  <SplitSquareHorizontal className="h-5 w-5" />
+                  <span>Place Bids</span>
+                </div>
+                <span className="text-sm text-muted-foreground">Bid on items you want</span>
+              </div>
+              <div className="hidden sm:block h-8 w-px bg-border" />
+              <div className="flex flex-col items-center gap-2 px-4">
+                <div className="flex items-center gap-2 text-primary font-medium">
+                  <Users2 className="h-5 w-5" />
+                  <span>Reach Consensus</span>
+                </div>
+                <span className="text-sm text-muted-foreground">Find a fair distribution together</span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Main Actions */}
-        <div className="relative w-full max-w-md">
+        <div className="w-full max-w-md px-4">
           <Card className="relative border-0 shadow-lg bg-card/60 backdrop-blur-xl">
-            <CardContent className="p-6 space-y-6">
+            <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-6">
               {/* Create Game Button */}
               <Link href="/create" className="block">
                 <Button 
@@ -109,25 +123,25 @@ export default function Home() {
           </Card>
         </div>
 
-        {/* Features List - Horizontal layout */}
-        <div className="grid grid-cols-3 gap-3 w-full max-w-md px-1">
-          <div className="flex flex-col items-center gap-2 bg-card/40 backdrop-blur-sm p-4 rounded-2xl">
+        {/* Features List - Responsive Grid */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full max-w-md px-4">
+          <div className="flex flex-col items-center gap-2 bg-card/40 backdrop-blur-sm p-3 sm:p-4 rounded-2xl">
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
               <Users2 className="h-4 w-4 text-primary" />
             </div>
-            <h3 className="text-sm font-semibold">Collaborative</h3>
+            <h3 className="text-xs sm:text-sm font-semibold text-center">Collaborative</h3>
           </div>
-          <div className="flex flex-col items-center gap-2 bg-card/40 backdrop-blur-sm p-4 rounded-2xl">
+          <div className="flex flex-col items-center gap-2 bg-card/40 backdrop-blur-sm p-3 sm:p-4 rounded-2xl">
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
               <Clock className="h-4 w-4 text-primary" />
             </div>
-            <h3 className="text-sm font-semibold">Real-time</h3>
+            <h3 className="text-xs sm:text-sm font-semibold text-center">Real-time</h3>
           </div>
-          <div className="flex flex-col items-center gap-2 bg-card/40 backdrop-blur-sm p-4 rounded-2xl">
+          <div className="flex flex-col items-center gap-2 bg-card/40 backdrop-blur-sm p-3 sm:p-4 rounded-2xl">
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
               <Zap className="h-4 w-4 text-primary" />
             </div>
-            <h3 className="text-sm font-semibold">Fair Split</h3>
+            <h3 className="text-xs sm:text-sm font-semibold text-center">Fair Split</h3>
           </div>
         </div>
       </div>
