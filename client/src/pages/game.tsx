@@ -430,15 +430,15 @@ export default function GamePage() {
       <div className="max-w-7xl mx-auto space-y-4">
         <div ref={resultsRef}>
           <div className="flex justify-between items-center">
-            <Link href="/">
+        <Link href="/">
               <Button variant="ghost" className="text-foreground hover:bg-accent">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Back
-              </Button>
-            </Link>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back
+          </Button>
+        </Link>
           </div>
 
           <Card className="mb-4 bg-card border-border">
-            <CardContent className="p-4">
+          <CardContent className="p-4">
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -456,21 +456,21 @@ export default function GamePage() {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <Button
+              <Button
                       variant="outline"
-                      size="sm"
+                size="sm"
                       className="text-foreground hover:bg-accent"
-                      onClick={() => {
-                        navigator.clipboard.writeText(gameLink);
-                        toast({ description: "Link copied to clipboard" });
-                      }}
-                    >
-                      <LinkIcon className="h-4 w-4 mr-2" />
+                onClick={() => {
+                  navigator.clipboard.writeText(gameLink);
+                  toast({ description: "Link copied to clipboard" });
+                }}
+              >
+                <LinkIcon className="h-4 w-4 mr-2" />
                       Share Game
-                    </Button>
-                    <div className="text-sm text-muted-foreground flex items-center">
-                      <Clock className="h-4 w-4 mr-1" />
-                      Last active {timeUntilExpiry}
+              </Button>
+            <div className="text-sm text-muted-foreground flex items-center">
+              <Clock className="h-4 w-4 mr-1" />
+              Last active {timeUntilExpiry}
                     </div>
                   </div>
                 </div>
@@ -752,9 +752,10 @@ export default function GamePage() {
 
                 {!currentParticipant && (
                   <div className="mb-4 p-4 border-2 border-primary/50 rounded-lg bg-primary/5 text-center">
-                    <h3 className="text-lg font-semibold text-primary mb-2">Select a Player to Start Bidding</h3>
+                    <Users2 className="h-12 w-12 text-primary mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-primary mb-2">Select a Player to View and Place Bids</h3>
                     <p className="text-sm text-muted-foreground">
-                      Click on a player's name below to start playing as them and place bids on items
+                      You need to select a player from the list below before you can view and place bids on items
                     </p>
                   </div>
                 )}
@@ -791,16 +792,6 @@ export default function GamePage() {
               </CardContent>
             </Card>
 
-            {!currentParticipant && (
-              <div className="rounded-lg bg-card border-2 border-primary/20 p-8 text-center mb-8">
-                <Users2 className="h-12 w-12 text-primary mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-foreground mb-2">Select a Player to View and Place Bids</h3>
-                <p className="text-muted-foreground max-w-md mx-auto">
-                  You need to select a player from the list above before you can view and place bids on items
-                </p>
-              </div>
-            )}
-
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
               {items.map((item) => {
                 const itemBids = getItemBids(item.id);
@@ -815,18 +806,18 @@ export default function GamePage() {
 
                 return (
                   <div key={item.id} className="w-full max-w-2xl mx-auto">
-                    <ItemCard
-                      item={item}
-                      items={items}
-                      onPriceChange={(price) => {
+                  <ItemCard
+                    item={item}
+                    items={items}
+                    onPriceChange={(price) => {
                         if (editingItemId === item.id) {
                           calculatePriceChanges(item.id, price);
                         } else {
                           // This is a confirmation of new price
                           confirmInterest.mutate({ itemId: item.id });
                         }
-                      }}
-                      isEditing={editingItemId === item.id}
+                    }}
+                    isEditing={editingItemId === item.id}
                       onStartEdit={() => {
                         if (!currentParticipant) {
                           toast({
