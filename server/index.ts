@@ -1,8 +1,17 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import cors from "cors";
 
 const app = express();
+
+// CORS configuration
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || "https://dvirzg.github.io",
+  credentials: true,
+};
+app.use(cors(corsOptions));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
@@ -53,7 +62,7 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  const PORT = 5000;
+  const PORT = parseInt(process.env.PORT || "5000", 10);
   server.listen(PORT, "0.0.0.0", () => {
     log(`serving on port ${PORT}`);
   });
