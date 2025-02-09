@@ -1,4 +1,4 @@
-import { Game, InsertGame, Item, InsertItem, Participant, InsertParticipant, ItemAssignment, InsertItemAssignment } from "@shared/schema";
+import { Game, InsertGame, Item, InsertItem, Participant, InsertParticipant, ItemAssignment, InsertItemAssignment, Bid, InsertBid } from "@shared/schema";
 
 export interface IStorage {
   createGame(game: InsertGame, creatorId: number): Promise<Game>;
@@ -17,6 +17,12 @@ export interface IStorage {
   createItemAssignment(assignment: InsertItemAssignment): Promise<ItemAssignment>;
   getItemAssignments(gameId: number): Promise<ItemAssignment[]>;
   removeItemAssignment(assignmentId: number): Promise<void>;
+
+  createBid(bid: InsertBid): Promise<Bid>;
+  getGameBids(gameId: number): Promise<Bid[]>;
+  getItemBids(itemId: number): Promise<Bid[]>;
+  updateBid(bidId: number, price: number, needsConfirmation: boolean): Promise<void>;
+  removeBid(bidId: number): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -24,20 +30,24 @@ export class MemStorage implements IStorage {
   private items: Map<number, Item>;
   private participants: Map<number, Participant>;
   private itemAssignments: Map<number, ItemAssignment>;
+  private bids: Map<number, Bid>;
   private currentGameId: number;
   private currentItemId: number;
   private currentParticipantId: number;
   private currentAssignmentId: number;
+  private currentBidId: number;
 
   constructor() {
     this.games = new Map();
     this.items = new Map();
     this.participants = new Map();
     this.itemAssignments = new Map();
+    this.bids = new Map();
     this.currentGameId = 1;
     this.currentItemId = 1;
     this.currentParticipantId = 1;
     this.currentAssignmentId = 1;
+    this.currentBidId = 1;
   }
 
   async createGame(game: InsertGame, creatorId: number): Promise<Game> {
@@ -137,6 +147,44 @@ export class MemStorage implements IStorage {
 
   async removeItemAssignment(assignmentId: number): Promise<void> {
     this.itemAssignments.delete(assignmentId);
+  }
+
+  async createBid(bid: InsertBid): Promise<Bid> {
+    const id = this.currentBidId++;
+    const newBid: Bid = {
+      ...bid,
+      id,
+      price: bid.price.toString(),
+      timestamp: new Date(),
+      needsConfirmation: bid.needsConfirmation ?? false,
+    };
+    this.bids.set(id, newBid);
+    return newBid;
+  }
+
+  async getGameBids(gameId: number): Promise<Bid[]> {
+    return Array.from(this.bids.values()).filter(bid => bid.gameId === gameId);
+  }
+
+  async getItemBids(itemId: number): Promise<Bid[]> {
+    return Array.from(this.bids.values()).filter(bid => bid.itemId === itemId);
+  }
+
+  async updateBid(bidId: number, price: number, needsConfirmation: boolean): Promise<void> {
+    const bid = this.bids.get(bidId);
+    if (!bid) {
+      throw new Error("Bid not found");
+    }
+    this.bids.set(bidId, {
+      ...bid,
+      price: price.toString(),
+      needsConfirmation,
+      timestamp: new Date(),
+    });
+  }
+
+  async removeBid(bidId: number): Promise<void> {
+    this.bids.delete(bidId);
   }
 }
 

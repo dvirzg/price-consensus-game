@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, decimal, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -35,6 +35,16 @@ export const itemAssignments = pgTable("item_assignments", {
   assignedAt: timestamp("assigned_at").defaultNow().notNull(),
 });
 
+export const bids = pgTable("bids", {
+  id: serial("id").primaryKey(),
+  itemId: integer("item_id").references(() => items.id).notNull(),
+  participantId: integer("participant_id").references(() => participants.id).notNull(),
+  gameId: integer("game_id").references(() => games.id).notNull(),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  needsConfirmation: boolean("needs_confirmation").default(false).notNull(),
+});
+
 export const insertGameSchema = createInsertSchema(games).extend({
   totalPrice: z.number().min(0.01, "Total price must be greater than 0"),
 }).omit({ 
@@ -62,6 +72,8 @@ export const insertItemAssignmentSchema = createInsertSchema(itemAssignments).om
   assignedAt: true,
 });
 
+export const insertBidSchema = createInsertSchema(bids);
+
 export type Game = typeof games.$inferSelect;
 export type InsertGame = z.infer<typeof insertGameSchema>;
 export type Item = typeof items.$inferSelect;
@@ -70,3 +82,5 @@ export type Participant = typeof participants.$inferSelect;
 export type InsertParticipant = z.infer<typeof insertParticipantSchema>;
 export type ItemAssignment = typeof itemAssignments.$inferSelect;
 export type InsertItemAssignment = z.infer<typeof insertItemAssignmentSchema>;
+export type Bid = typeof bids.$inferSelect;
+export type InsertBid = typeof bids.$inferInsert;
