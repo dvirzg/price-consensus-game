@@ -27,7 +27,9 @@ jobs:
         
       - name: Build
         run: npm run build
-        
+        env:
+          VITE_API_URL: https://price-consensus-game-production.up.railway.app
+          
       - name: Setup Pages
         uses: actions/configure-pages@v4
         
@@ -45,4 +47,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4 
+        uses: actions/deploy-pages@v4
