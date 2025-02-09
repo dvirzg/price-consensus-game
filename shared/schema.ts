@@ -9,6 +9,7 @@ export const games = pgTable("games", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastActive: timestamp("last_active").defaultNow().notNull(),
   status: text("status", { enum: ["active", "inactive", "completed"] }).default("active").notNull(),
+  creatorId: integer("creator_id").references(() => participants.id),
 });
 
 export const items = pgTable("items", {
@@ -40,7 +41,8 @@ export const insertGameSchema = createInsertSchema(games).extend({
   id: true,
   createdAt: true,
   lastActive: true,
-  status: true 
+  status: true,
+  creatorId: true
 });
 
 export const insertItemSchema = createInsertSchema(items).extend({

@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { X, Plus, ArrowLeft, Upload } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { z } from "zod";
 
 interface ItemWithPreview {
   title: string;
@@ -31,16 +32,26 @@ export default function CreateGame() {
   const [items, setItems] = useState<ItemWithPreview[]>([]);
 
   const form = useForm({
-    resolver: zodResolver(insertGameSchema),
+    resolver: zodResolver(insertGameSchema.extend({
+      creatorName: z.string().min(1, "Your name is required"),
+      creatorEmail: z.string().email("Invalid email").optional().or(z.literal("")),
+    })),
     defaultValues: {
       title: "",
       totalPrice: 0,
+      creatorName: "",
+      creatorEmail: "",
     },
   });
 
   const createGame = useMutation({
-    mutationFn: async (data: { title: string; totalPrice: number }) => {
-      const game = await apiRequest("POST", "/api/games", data);
+    mutationFn: async (data: { title: string; totalPrice: number; creatorName: string; creatorEmail: string }) => {
+      const game = await apiRequest("POST", "/api/games", {
+        title: data.title,
+        totalPrice: data.totalPrice,
+        creatorName: data.creatorName,
+        creatorEmail: data.creatorEmail,
+      });
       const gameData = await game.json();
 
       // Create items
@@ -151,6 +162,34 @@ export default function CreateGame() {
                           className="w-full"
                           onChange={(e) => field.onChange(parseFloat(e.target.value))}
                         />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="creatorName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Your Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} className="w-full" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="creatorEmail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Your Email (optional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} className="w-full" type="email" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

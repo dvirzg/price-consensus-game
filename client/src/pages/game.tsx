@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams } from "wouter";
-import { Game, Item, Participant, ItemAssignment } from "@shared/schema";
+import { Game as GameBase, Item, Participant, ItemAssignment } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,10 +21,17 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-interface PriceAgreement {
+// Extend the Game type to include creatorId
+interface Game extends GameBase {
+  creatorId: number;
+}
+
+interface ItemInterest {
   itemId: number;
   participantId: number;
-  agreedPrice: number;
+  price: number;
+  timestamp: number;
+  needsConfirmation: boolean;
 }
 
 export default function GamePage() {
@@ -36,7 +43,7 @@ export default function GamePage() {
   const [previewPrices, setPreviewPrices] = useState<{ [key: number]: number }>({});
   const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
-  const [priceAgreements, setPriceAgreements] = useState<PriceAgreement[]>([]);
+  const [itemInterests, setItemInterests] = useState<ItemInterest[]>([]);
 
   const { data: game, error: gameError } = useQuery<Game>({
     queryKey: [`/api/games/${id}`],
@@ -77,45 +84,97 @@ export default function GamePage() {
   const updatePrice = useMutation({
     mutationFn: async ({ itemId, price }: { itemId: number; price: number }) => {
       await apiRequest("PATCH", `/api/items/${itemId}/price`, { price });
+      
+      if (currentParticipant) {
+        setItemInterests(prev => {
+          const newInterests = [...prev];
+          
+          // 1. Remove any previous interest by this participant for this specific item
+          const filteredInterests = newInterests.filter(interest => 
+            !(interest.itemId === itemId && interest.participantId === currentParticipant.id)
+          );
+          
+          // 2. Add new confirmed interest ONLY for the item being bid on
+          filteredInterests.push({
+            itemId,
+            participantId: currentParticipant.id,
+            price,
+            timestamp: Date.now(),
+            needsConfirmation: false
+          });
+
+          // 3. For other items with changed prices, ONLY update confirmation status of OTHER players' existing interests
+          Object.entries(previewPrices).forEach(([affectedItemId, newPrice]) => {
+            const numericItemId = parseInt(affectedItemId);
+            if (numericItemId !== itemId) {  // Skip the item being bid on
+              filteredInterests.forEach((interest, index) => {
+                if (interest.itemId === numericItemId && interest.participantId !== currentParticipant.id) {
+                  // Only update other players' interests
+                  const needsNewConfirmation = newPrice > interest.price;
+                  filteredInterests[index] = {
+                    ...interest,
+                    needsConfirmation: needsNewConfirmation
+                  };
+                }
+              });
+            }
+          });
+
+          return filteredInterests;
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/items`] });
       setEditingItemId(null);
       setPreviewPrices({});
     },
-  });
-
-  const assignItem = useMutation({
-    mutationFn: async ({ itemId, participantId }: { itemId: number; participantId: number }) => {
-      await apiRequest("POST", `/api/games/${id}/assignments`, {
-        itemId,
-        participantId,
-        gameId: Number(id),
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
       });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/assignments`] });
-    },
+    }
   });
 
-  const agreeToPrices = useMutation({
-    mutationFn: async () => {
-      // Record agreement for all current prices for the current participant
-      const agreements = items?.map(item => ({
-        itemId: item.id,
-        participantId: currentParticipant!.id,
-        agreedPrice: Number(item.currentPrice)
-      }));
+  // Confirm interest in an item at its current price
+  const confirmInterest = useMutation({
+    mutationFn: async ({ itemId }: { itemId: number }) => {
+      if (!currentParticipant || !items) return;
       
-      // In a real app, you'd want to store these agreements in the backend
-      setPriceAgreements(prev => {
-        // Remove previous agreements by this participant
-        const filtered = prev.filter(a => a.participantId !== currentParticipant!.id);
-        return [...filtered, ...(agreements || [])];
+      const item = items.find(i => i.id === itemId);
+      if (!item) return;
+
+      setItemInterests(prev => {
+        const newInterests = [...prev];
+        const existingInterestIndex = newInterests.findIndex(
+          interest => interest.itemId === itemId && interest.participantId === currentParticipant.id
+        );
+        
+        if (existingInterestIndex >= 0) {
+          newInterests[existingInterestIndex] = {
+            ...newInterests[existingInterestIndex],
+            price: Number(item.currentPrice),  // Update the confirmed price
+            timestamp: Date.now(),
+            needsConfirmation: false
+          };
+        } else {
+          // If no existing interest, create a new one
+          newInterests.push({
+            itemId,
+            participantId: currentParticipant.id,
+            price: Number(item.currentPrice),
+            timestamp: Date.now(),
+            needsConfirmation: false
+          });
+        }
+
+        return newInterests;
       });
     },
     onSuccess: () => {
-      toast({ title: "Success", description: "You have agreed to the current prices" });
+      toast({ title: "Success", description: "Interest confirmed at new price" });
     }
   });
 
@@ -142,56 +201,98 @@ export default function GamePage() {
     setPreviewPrices(newPrices);
   };
 
-  // Calculate if the game is resolved (all players have agreed to current prices)
+  // Get all interests for an item
+  const getItemBids = (itemId: number): { userId: number; userName: string; price: number; needsConfirmation: boolean }[] => {
+    if (!participants) return [];
+
+    return itemInterests
+      .filter(interest => interest.itemId === itemId)
+      .map(interest => ({
+        userId: interest.participantId,
+        userName: getParticipantName(interest.participantId),
+        price: interest.price,
+        needsConfirmation: interest.needsConfirmation
+      }));
+  };
+
+  // Calculate if the game is resolved
   const isGameResolved = useMemo(() => {
-    if (!items || !participants || !assignments || !priceAgreements) return false;
+    if (!items || !participants) return false;
     
-    // Check if all items have assignments
-    const allItemsAssigned = items.every(item => 
-      assignments.some(a => a.itemId === item.id)
-    );
+    // Check if we have more participants than items
+    if (participants.length > items.length) {
+      return false;
+    }
 
     // Check if total price matches
     const totalBidPrice = items.reduce((sum, item) => sum + Number(item.currentPrice), 0);
     const priceMatches = Math.abs(totalBidPrice - Number(game?.totalPrice)) < 0.01;
 
-    // Check if all participants have agreed to current prices
-    const allPricesAgreed = participants.every(participant => {
-      const participantAgreements = priceAgreements.filter(a => a.participantId === participant.id);
-      return items.every(item => {
-        const agreement = participantAgreements.find(a => a.itemId === item.id);
-        return agreement && agreement.agreedPrice === Number(item.currentPrice);
-      });
+    // Get current interests at current prices
+    const currentInterests = items.map(item => {
+      const itemPrice = Number(item.currentPrice);
+      return itemInterests.filter(interest => 
+        interest.itemId === item.id && 
+        !interest.needsConfirmation &&
+        itemPrice <= interest.price  // Interest is valid if current price is less than or equal to confirmed price
+      );
     });
 
-    return allItemsAssigned && priceMatches && allPricesAgreed;
-  }, [items, participants, assignments, game, priceAgreements]);
+    // Check if each item has at most one valid interest
+    const noConflictingInterests = currentInterests.every(interests => interests.length <= 1);
 
-  // Get if current participant has agreed to current prices
-  const hasAgreedToPrices = useMemo(() => {
-    if (!currentParticipant || !items) return false;
+    // Check if all items have exactly one valid interest
+    const allItemsHaveInterest = currentInterests.every(interests => interests.length === 1);
 
-    const participantAgreements = priceAgreements.filter(
-      a => a.participantId === currentParticipant.id
+    // Check if there are no interests needing confirmation
+    const noUnconfirmedInterests = !itemInterests.some(interest => interest.needsConfirmation);
+
+    // Each participant must have at least one valid interest
+    const allParticipantsHaveItems = participants.every(participant => 
+      itemInterests.some(interest => 
+        interest.participantId === participant.id && 
+        !interest.needsConfirmation &&
+        Number(items.find(item => item.id === interest.itemId)?.currentPrice || 0) <= interest.price
+      )
     );
 
-    return items.every(item => {
-      const agreement = participantAgreements.find(a => a.itemId === item.id);
-      return agreement && agreement.agreedPrice === Number(item.currentPrice);
-    });
-  }, [currentParticipant, items, priceAgreements]);
+    return priceMatches && noConflictingInterests && allItemsHaveInterest && 
+           noUnconfirmedInterests && allParticipantsHaveItems;
+  }, [items, participants, itemInterests, game]);
 
-  // Get all bids for an item
-  const getItemBids = (itemId: number): { userId: number; userName: string; price: number }[] => {
-    if (!participants || !assignments) return [];
-
-    const itemAssignments = assignments.filter(a => a.itemId === itemId);
-    return itemAssignments.map(assignment => ({
-      userId: assignment.participantId,
-      userName: getParticipantName(assignment.participantId),
-      price: Number(items?.find(i => i.id === itemId)?.currentPrice || 0)
-    }));
-  };
+  // Add reset game mutation
+  const resetGame = useMutation({
+    mutationFn: async () => {
+      if (!items || !game) return;
+      
+      // Reset all item prices to equal distribution of total price
+      const equalPrice = Number(game.totalPrice) / items.length;
+      
+      // Update all items with equal price
+      for (const item of items) {
+        await apiRequest("PATCH", `/api/items/${item.id}/price`, { 
+          price: equalPrice 
+        });
+      }
+      
+      // Clear all interests
+      setItemInterests([]);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/items`] });
+      toast({ 
+        title: "Success", 
+        description: "Game has been reset. All prices have been equalized and interests cleared." 
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to reset game: " + error.message,
+        variant: "destructive"
+      });
+    }
+  });
 
   // Handle API errors
   if (gameError || itemsError) {
@@ -349,49 +450,64 @@ export default function GamePage() {
                   <div className="flex justify-between text-sm mb-2">
                     <span>Progress to resolution</span>
                     <span className="text-muted-foreground">
-                      {assignments?.length || 0} of {items?.length || 0} items assigned
+                      {items?.filter(item => 
+                        itemInterests.some(interest => 
+                          interest.itemId === item.id && 
+                          Math.abs(interest.price - Number(item.currentPrice)) < 0.01 &&
+                          !interest.needsConfirmation
+                        )
+                      ).length || 0} of {items?.length || 0} items have confirmed buyers
                     </span>
                   </div>
                   <Progress 
-                    value={((assignments?.length || 0) / (items?.length || 1)) * 100} 
+                    value={((items?.filter(item => 
+                      itemInterests.some(interest => 
+                        interest.itemId === item.id && 
+                        Math.abs(interest.price - Number(item.currentPrice)) < 0.01 &&
+                        !interest.needsConfirmation
+                      )
+                    ).length || 0) / (items?.length || 1)) * 100} 
                     className="h-2"
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="text-sm">
-                    Players who agreed to current prices:
-                    <div className="text-muted-foreground">
-                      {participants?.map(p => (
-                        <div key={p.id} className="flex items-center gap-2">
-                          <span>{p.name}:</span>
-                          {priceAgreements.some(a => 
-                            a.participantId === p.id && 
-                            items?.every(item => 
-                              priceAgreements.find(agreement => 
-                                agreement.participantId === p.id && 
-                                agreement.itemId === item.id && 
-                                agreement.agreedPrice === Number(item.currentPrice)
-                              )
+                <div className="text-sm space-y-2">
+                  <div className="font-medium">Current Item Interests:</div>
+                  <div className="text-muted-foreground">
+                    {items?.map(item => (
+                      <div key={item.id} className="flex items-center justify-between">
+                        <span>{item.title}:</span>
+                        <div className="flex items-center gap-2">
+                          {itemInterests
+                            .filter(interest => 
+                              interest.itemId === item.id && 
+                              Math.abs(interest.price - Number(item.currentPrice)) < 0.01
                             )
-                          ) ? (
-                            <span className="text-green-600">✓ Agreed</span>
-                          ) : (
-                            <span className="text-yellow-600">Pending</span>
-                          )}
+                            .map(interest => (
+                              <div key={interest.participantId} className="flex items-center gap-1">
+                                <span>{getParticipantName(interest.participantId)}</span>
+                                {interest.needsConfirmation && (
+                                  <span className="text-yellow-500">(needs confirmation)</span>
+                                )}
+                                {interest.participantId === currentParticipant?.id && interest.needsConfirmation && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => confirmInterest.mutate({ itemId: item.id })}
+                                  >
+                                    Confirm
+                                  </Button>
+                                )}
+                              </div>
+                            ))}
+                          {!itemInterests.some(interest => 
+                            interest.itemId === item.id && 
+                            Math.abs(interest.price - Number(item.currentPrice)) < 0.01
+                          ) && "No interest"}
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                  {currentParticipant && !hasAgreedToPrices && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => agreeToPrices.mutate()}
-                    >
-                      Agree to Current Prices
-                    </Button>
-                  )}
                 </div>
               </div>
             )}
@@ -449,7 +565,9 @@ export default function GamePage() {
                   value={currentParticipant?.id?.toString() || ""}
                   onValueChange={(value) => {
                     const participant = participants?.find(p => p.id === parseInt(value));
-                    setCurrentParticipant(participant || null);
+                    if (participant) {
+                      setCurrentParticipant(participant);
+                    }
                   }}
                 >
                   <SelectTrigger className="w-full">
@@ -461,7 +579,7 @@ export default function GamePage() {
                         key={participant.id} 
                         value={participant.id.toString()}
                       >
-                        {participant.name}
+                        {participant.name || "Unknown Player"}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -477,7 +595,7 @@ export default function GamePage() {
                     ?.filter(p => p.id !== currentParticipant?.id)
                     .map((participant) => (
                       <div key={participant.id} className="flex items-center gap-2 p-1">
-                        <span className="truncate">{participant.name}</span>
+                        <span className="truncate">{participant.name || "Unknown Player"}</span>
                       </div>
                     ))}
                 </div>
@@ -537,14 +655,6 @@ export default function GamePage() {
                         })
                       );
                       updates.forEach((update) => updatePrice.mutate(update));
-                      
-                      // Create assignment for the current user
-                      if (currentParticipant && editingItemId) {
-                        assignItem.mutate({
-                          itemId: editingItemId,
-                          participantId: currentParticipant.id
-                        });
-                      }
                     }}
                   >
                     Confirm Bid
@@ -562,6 +672,45 @@ export default function GamePage() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* Add debug information */}
+        <Card className="mb-4">
+          <CardContent className="p-4">
+            <div className="text-sm text-muted-foreground">
+              <p>Debug Info:</p>
+              <p>Current Participant ID: {currentParticipant?.id}</p>
+              <p>Game Creator ID: {game.creatorId}</p>
+              <p>Is Creator: {currentParticipant?.id === game.creatorId ? 'Yes' : 'No'}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Add Reset Game section at the bottom */}
+        {currentParticipant?.id === game.creatorId && (
+          <Card className="mt-8 border-destructive">
+            <CardHeader>
+              <CardTitle className="text-destructive">Game Controls</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  As the game creator, you have access to additional controls. Please use these carefully.
+                </p>
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => {
+                    if (window.confirm("Are you sure you want to reset the game? This will clear all bids and reset prices to equal distribution.")) {
+                      resetGame.mutate();
+                    }
+                  }}
+                >
+                  Reset Game
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

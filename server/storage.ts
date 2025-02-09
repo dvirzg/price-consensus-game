@@ -1,7 +1,7 @@
 import { Game, InsertGame, Item, InsertItem, Participant, InsertParticipant, ItemAssignment, InsertItemAssignment } from "@shared/schema";
 
 export interface IStorage {
-  createGame(game: InsertGame): Promise<Game>;
+  createGame(game: InsertGame, creatorId: number): Promise<Game>;
   getGame(id: number): Promise<Game | undefined>;
   updateGameStatus(id: number, status: "active" | "inactive" | "completed"): Promise<void>;
   updateGameLastActive(id: number): Promise<void>;
@@ -12,6 +12,7 @@ export interface IStorage {
 
   createParticipant(gameId: number, participant: InsertParticipant): Promise<Participant>;
   getGameParticipants(gameId: number): Promise<Participant[]>;
+  updateParticipantGameId(participantId: number, gameId: number): Promise<void>;
 
   createItemAssignment(assignment: InsertItemAssignment): Promise<ItemAssignment>;
   getItemAssignments(gameId: number): Promise<ItemAssignment[]>;
@@ -39,7 +40,7 @@ export class MemStorage implements IStorage {
     this.currentAssignmentId = 1;
   }
 
-  async createGame(game: InsertGame): Promise<Game> {
+  async createGame(game: InsertGame, creatorId: number): Promise<Game> {
     const id = this.currentGameId++;
     const newGame: Game = {
       ...game,
@@ -48,6 +49,7 @@ export class MemStorage implements IStorage {
       createdAt: new Date(),
       lastActive: new Date(),
       status: "active",
+      creatorId
     };
     this.games.set(id, newGame);
     return newGame;
@@ -108,6 +110,14 @@ export class MemStorage implements IStorage {
 
   async getGameParticipants(gameId: number): Promise<Participant[]> {
     return Array.from(this.participants.values()).filter(p => p.gameId === gameId);
+  }
+
+  async updateParticipantGameId(participantId: number, gameId: number): Promise<void> {
+    const participant = this.participants.get(participantId);
+    if (participant) {
+      participant.gameId = gameId;
+      this.participants.set(participantId, participant);
+    }
   }
 
   async createItemAssignment(assignment: InsertItemAssignment): Promise<ItemAssignment> {

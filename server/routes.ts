@@ -8,9 +8,31 @@ import { fromZodError } from "zod-validation-error";
 export function registerRoutes(app: Express): Server {
   app.post("/api/games", async (req, res) => {
     try {
-      const game = insertGameSchema.parse(req.body);
-      const created = await storage.createGame(game);
-      res.json(created);
+      const { title, totalPrice, creatorName, creatorEmail } = req.body;
+      const game = insertGameSchema.parse({ title, totalPrice });
+      
+      // Create the creator participant first with the provided name
+      const creator = await storage.createParticipant(0, {
+        name: creatorName || "Unknown Player",  // Ensure we have a default name
+        email: creatorEmail || null
+      });
+      
+      // Create the game with the creator
+      const created = await storage.createGame(game, creator.id);
+      
+      // Update the participant's gameId now that we have the game
+      await storage.updateParticipantGameId(creator.id, created.id);
+      
+      // Return both the game and the creator information
+      res.json({
+        ...created,
+        creatorId: creator.id,
+        creator: {
+          id: creator.id,
+          name: creator.name,
+          email: creator.email
+        }
+      });
     } catch (err) {
       if (err instanceof z.ZodError) {
         const validationError = fromZodError(err);
