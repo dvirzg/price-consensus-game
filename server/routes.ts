@@ -24,7 +24,13 @@ export function registerRoutes(app: Express): Server {
 
   app.get("/api/games/:id", async (req, res) => {
     try {
-      const game = await storage.getGame(Number(req.params.id));
+      const gameId = Number(req.params.id);
+      if (isNaN(gameId)) {
+        res.status(400).json({ message: "Invalid game ID" });
+        return;
+      }
+
+      const game = await storage.getGame(gameId);
       if (!game) {
         res.status(404).json({ message: "Game not found" });
         return;
@@ -47,14 +53,20 @@ export function registerRoutes(app: Express): Server {
         res.status(400).json({ message: validationError.message });
       } else {
         console.error("Failed to create item:", err);
-        res.status(400).json({ message: "Failed to create item" });
+        res.status(500).json({ message: "Failed to create item" });
       }
     }
   });
 
   app.get("/api/games/:id/items", async (req, res) => {
     try {
-      const items = await storage.getGameItems(Number(req.params.id));
+      const gameId = Number(req.params.id);
+      if (isNaN(gameId)) {
+        res.status(400).json({ message: "Invalid game ID" });
+        return;
+      }
+
+      const items = await storage.getGameItems(gameId);
       res.json(items);
     } catch (err) {
       console.error("Failed to get items:", err);
@@ -88,14 +100,20 @@ export function registerRoutes(app: Express): Server {
         res.status(400).json({ message: validationError.message });
       } else {
         console.error("Failed to create participant:", err);
-        res.status(400).json({ message: "Failed to create participant" });
+        res.status(500).json({ message: "Failed to create participant" });
       }
     }
   });
 
   app.get("/api/games/:id/participants", async (req, res) => {
     try {
-      const participants = await storage.getGameParticipants(Number(req.params.id));
+      const gameId = Number(req.params.id);
+      if (isNaN(gameId)) {
+        res.status(400).json({ message: "Invalid game ID" });
+        return;
+      }
+
+      const participants = await storage.getGameParticipants(gameId);
       res.json(participants);
     } catch (err) {
       console.error("Failed to get participants:", err);

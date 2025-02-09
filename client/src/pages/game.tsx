@@ -17,16 +17,18 @@ export default function GamePage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
 
-  const { data: game } = useQuery<Game>({
-    queryKey: ["/api/games", id],
+  const { data: game, error: gameError } = useQuery<Game>({
+    queryKey: [`/api/games/${id}`],
+    retry: false,
   });
 
-  const { data: items } = useQuery<Item[]>({
-    queryKey: ["/api/games", id, "items"],
+  const { data: items, error: itemsError } = useQuery<Item[]>({
+    queryKey: [`/api/games/${id}/items`],
+    retry: false,
   });
 
   const { data: participants } = useQuery<Participant[]>({
-    queryKey: ["/api/games", id, "participants"],
+    queryKey: [`/api/games/${id}/participants`],
   });
 
   const joinGame = useMutation({
@@ -37,7 +39,7 @@ export default function GamePage() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/games", id, "participants"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/participants`] });
       toast({ title: "Success", description: "Joined game successfully" });
     },
   });
@@ -47,10 +49,31 @@ export default function GamePage() {
       await apiRequest("PATCH", `/api/items/${itemId}/price`, { price });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/games", id, "items"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/items`] });
     },
   });
 
+  // Handle API errors
+  if (gameError || itemsError) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4">
+        <div className="max-w-md mx-auto">
+          <Card>
+            <CardContent className="p-8">
+              <div className="text-center text-destructive">
+                <p className="font-medium">Error loading game</p>
+                <p className="text-sm mt-2">
+                  {gameError?.message || itemsError?.message || "Please try again"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state
   if (!game || !items) {
     return (
       <div className="min-h-screen bg-gray-50 p-4">
