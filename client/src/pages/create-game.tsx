@@ -56,7 +56,7 @@ export default function CreateGame() {
 
       // Create items
       for (const item of items) {
-        await apiRequest("POST", `/api/games/${gameData.id}/items`, {
+        await apiRequest("POST", `/api/games/${gameData.uniqueId}/items`, {
           title: item.title,
           imageData: item.imageData,
           currentPrice: data.totalPrice / items.length,
