@@ -94,11 +94,24 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
       refetchOnMount: true,
-      refetchInterval: (data) => data ? false : 1000, // Retry every second if no data
+      refetchInterval: (data) => {
+        // If we have no data, retry every second
+        if (!data) return 1000;
+        // If we have data but it's incomplete, retry every 5 seconds
+        if (typeof data === 'object' && (!data || Object.keys(data).length === 0)) return 5000;
+        // Otherwise, don't refetch automatically
+        return false;
+      },
+      onError: (error) => {
+        console.error('Query error:', error);
+      }
     },
     mutations: {
       retry: 5,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      onError: (error) => {
+        console.error('Mutation error:', error);
+      }
     },
   },
 });

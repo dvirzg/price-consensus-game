@@ -414,9 +414,16 @@ export default function GamePage() {
 
   // Show loading state
   const isLoading = isGameLoading || isItemsLoading || isParticipantsLoading || isAssignmentsLoading || isBidsLoading;
-  if (isLoading || !game || !items) {
+  if (isLoading) {
+    console.log("Loading state:", {
+      isGameLoading,
+      isItemsLoading,
+      isParticipantsLoading,
+      isAssignmentsLoading,
+      isBidsLoading
+    });
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
+      <div className="min-h-screen bg-background p-4">
         <div className="max-w-md mx-auto">
           <Card>
             <CardContent className="p-8">
@@ -433,8 +440,10 @@ export default function GamePage() {
 
   // Handle API errors
   if (gameError || itemsError) {
+    console.error("Game error:", gameError);
+    console.error("Items error:", itemsError);
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
+      <div className="min-h-screen bg-background p-4">
         <div className="max-w-md mx-auto">
           <Card>
             <CardContent className="p-8">
@@ -453,6 +462,32 @@ export default function GamePage() {
                   onClick={() => window.location.href = `${baseUrl}/#/`}
                 >
                   Return Home
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Check for undefined game or items
+  if (!game || !items) {
+    console.error("Missing data:", { game, items });
+    return (
+      <div className="min-h-screen bg-background p-4">
+        <div className="max-w-md mx-auto">
+          <Card>
+            <CardContent className="p-8">
+              <div className="text-center text-destructive">
+                <p className="font-medium">Error Loading Game Data</p>
+                <p className="text-sm mt-2">Unable to load game data. Please try refreshing the page.</p>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => window.location.reload()}
+                >
+                  Refresh Page
                 </Button>
               </div>
             </CardContent>
