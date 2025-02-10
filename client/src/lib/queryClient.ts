@@ -1,6 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-const API_URL = import.meta.env.VITE_API_URL;
+// Get base URL for GitHub Pages or development
+const baseUrl = import.meta.env.DEV ? 'http://localhost:5000' : 'https://price-consensus-game-production.up.railway.app';
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -23,27 +24,35 @@ function getErrorMessage(error: unknown): string {
   return 'An unknown error occurred';
 }
 
-export async function apiRequest(
-  method: string,
-  url: string,
-  data?: unknown | undefined,
-): Promise<Response> {
-  const fullUrl = `${API_URL}${url}`;
-  console.log(`Making ${method} request to ${fullUrl}`, data);
-  
-  try {
-    const res = await fetch(fullUrl, {
-      method,
-      headers: data ? { "Content-Type": "application/json" } : {},
-      body: data ? JSON.stringify(data) : undefined,
-      credentials: "include",
-    });
+export async function apiRequest(method: string, path: string, body?: any) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
 
-    await throwIfResNotOk(res);
-    return res;
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: "An error occurred" }));
+    throw new Error(error.message || `HTTP error! status: ${response.status}`);
+  }
+
+  return response;
+}
+
+// Add a helper function for retrying failed requests
+export async function retryRequest<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delay = 1000
+): Promise<T> {
+  try {
+    return await fn();
   } catch (error) {
-    console.error('API Request failed:', error);
-    throw new Error(getErrorMessage(error));
+    if (retries === 0) throw error;
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return retryRequest(fn, retries - 1, delay * 2);
   }
 }
 
@@ -53,7 +62,7 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const fullUrl = `${API_URL}${queryKey[0]}`;
+    const fullUrl = `${baseUrl}${queryKey[0]}`;
     console.log(`Making query request to ${fullUrl}`);
     
     try {
@@ -77,13 +86,15 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
-      retry: false,
+      retry: 3,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      staleTime: 0,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
     },
     mutations: {
-      retry: false,
+      retry: 3,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     },
   },
 });

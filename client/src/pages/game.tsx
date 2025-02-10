@@ -63,30 +63,37 @@ export default function GamePage() {
   const baseUrl = import.meta.env.DEV ? '' : '/price-consensus-game';
   const gameLink = `${window.location.protocol}//${window.location.host}${baseUrl}/#/game/${uniqueId}`;
 
-  const { data: game, error: gameError } = useQuery({
+  const { data: game, error: gameError, isLoading: isGameLoading } = useQuery({
     queryKey: [`/api/games/${uniqueId}`] as const,
-    retry: false,
+    retry: 3,
     staleTime: 0,
     enabled: !!uniqueId,
-    refetchOnWindowFocus: false
-  }) as { data: Game | undefined; error: ApiError | null };
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true
+  }) as { data: Game | undefined; error: ApiError | null; isLoading: boolean };
 
-  const { data: items, error: itemsError } = useQuery<Item[]>({
+  const { data: items, error: itemsError, isLoading: isItemsLoading } = useQuery<Item[]>({
     queryKey: [`/api/games/${uniqueId}/items`],
-    retry: false,
+    retry: 3,
+    enabled: !!uniqueId && !gameError,
   });
 
-  const { data: participants } = useQuery<Participant[]>({
+  const { data: participants, isLoading: isParticipantsLoading } = useQuery<Participant[]>({
     queryKey: [`/api/games/${uniqueId}/participants`],
+    retry: 3,
+    enabled: !!uniqueId && !gameError,
   });
 
-  const { data: assignments } = useQuery<ItemAssignment[]>({
+  const { data: assignments, isLoading: isAssignmentsLoading } = useQuery<ItemAssignment[]>({
     queryKey: [`/api/games/${uniqueId}/assignments`],
+    retry: 3,
+    enabled: !!uniqueId && !gameError,
   });
 
-  const { data: bids = [] } = useQuery<Bid[]>({
+  const { data: bids = [], isLoading: isBidsLoading } = useQuery<Bid[]>({
     queryKey: [`/api/games/${uniqueId}/bids`],
-    enabled: !!uniqueId,
+    retry: 3,
+    enabled: !!uniqueId && !gameError,
   });
 
   // Convert server bid to client bid format
@@ -405,8 +412,27 @@ export default function GamePage() {
     }
   });
 
+  // Show loading state
+  const isLoading = isGameLoading || isItemsLoading || isParticipantsLoading || isAssignmentsLoading || isBidsLoading;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4">
+        <div className="max-w-md mx-auto">
+          <Card>
+            <CardContent className="p-8">
+              <div className="flex flex-col items-center justify-center gap-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <p className="text-center text-muted-foreground">Loading game data...</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   // Handle API errors
-  if (gameError) {
+  if (gameError || itemsError) {
     return (
       <div className="min-h-screen bg-gray-50 p-4">
         <div className="max-w-md mx-auto">
@@ -414,12 +440,12 @@ export default function GamePage() {
             <CardContent className="p-8">
               <div className="text-center text-destructive">
                 <p className="font-medium">
-                  {gameError.status === 410 ? "Game Expired" : "Error Loading Game"}
+                  {gameError?.status === 410 ? "Game Expired" : "Error Loading Game"}
                 </p>
                 <p className="text-sm mt-2">
-                  {gameError.status === 410 
+                  {gameError?.status === 410 
                     ? "This game has expired and is no longer accessible."
-                    : gameError?.message || "Please try again"}
+                    : gameError?.message || itemsError?.message || "Please try again"}
                 </p>
                 <Button
                   variant="outline"
@@ -429,24 +455,6 @@ export default function GamePage() {
                   Return Home
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  // Show loading state
-  if (!game || !items) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="max-w-md mx-auto">
-          <Card>
-            <CardContent className="p-8">
-              <div className="flex justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              </div>
-              <p className="text-center mt-4">Loading game...</p>
             </CardContent>
           </Card>
         </div>
