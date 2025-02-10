@@ -153,6 +153,25 @@ export default function GamePage() {
     }
   });
 
+  // Store current participant in localStorage to persist across refreshes
+  useEffect(() => {
+    const storedParticipant = localStorage.getItem('currentParticipant');
+    if (storedParticipant && participants) {
+      const parsed = JSON.parse(storedParticipant);
+      const found = participants.find(p => p.id === parsed.id);
+      if (found) {
+        setCurrentParticipant(found);
+      }
+    }
+  }, [participants]);
+
+  // Update localStorage when participant changes
+  useEffect(() => {
+    if (currentParticipant) {
+      localStorage.setItem('currentParticipant', JSON.stringify(currentParticipant));
+    }
+  }, [currentParticipant]);
+
   const updatePrice = useMutation({
     mutationFn: async ({ itemId, price, isMainBid = false }: { itemId: number; price: number; isMainBid?: boolean }) => {
       // Convert price to number explicitly
@@ -199,7 +218,9 @@ export default function GamePage() {
       }
     },
     onSuccess: () => {
+      // Invalidate queries in sequence to ensure proper state updates
       queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/bids`] });
       setEditingItemId(null);
       setPreviewPrices({});
     },
@@ -209,6 +230,8 @@ export default function GamePage() {
         description: error.message,
         variant: "destructive"
       });
+      setEditingItemId(null);
+      setPreviewPrices({});
     }
   });
 
@@ -232,14 +255,23 @@ export default function GamePage() {
         });
       } else {
         await createBid.mutateAsync({
-        itemId,
+          itemId,
           price: Number(item.currentPrice),
           needsConfirmation: false
         });
       }
     },
     onSuccess: () => {
+      // Invalidate queries in sequence
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/bids`] });
       toast({ title: "Success", description: "Interest confirmed at new price" });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
     }
   });
 
