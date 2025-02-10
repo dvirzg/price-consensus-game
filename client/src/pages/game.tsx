@@ -65,36 +65,72 @@ export default function GamePage() {
 
   const { data: game, error: gameError, isLoading: isGameLoading } = useQuery({
     queryKey: [`/api/games/${uniqueId}`] as const,
-    retry: 3,
+    retry: 5,
     staleTime: 0,
     enabled: !!uniqueId,
     refetchOnWindowFocus: true,
-    refetchOnReconnect: true
+    refetchOnReconnect: true,
+    refetchInterval: 5000, // Refetch every 5 seconds to handle server restarts
+    onError: (error) => {
+      console.error("Game query error:", error);
+    }
   }) as { data: Game | undefined; error: ApiError | null; isLoading: boolean };
 
   const { data: items, error: itemsError, isLoading: isItemsLoading } = useQuery<Item[]>({
     queryKey: [`/api/games/${uniqueId}/items`],
-    retry: 3,
+    retry: 5,
     enabled: !!uniqueId && !gameError,
+    refetchInterval: 5000,
+    onError: (error) => {
+      console.error("Items query error:", error);
+    }
   });
 
   const { data: participants, isLoading: isParticipantsLoading } = useQuery<Participant[]>({
     queryKey: [`/api/games/${uniqueId}/participants`],
-    retry: 3,
+    retry: 5,
     enabled: !!uniqueId && !gameError,
+    refetchInterval: 5000,
+    onError: (error) => {
+      console.error("Participants query error:", error);
+    }
   });
 
   const { data: assignments, isLoading: isAssignmentsLoading } = useQuery<ItemAssignment[]>({
     queryKey: [`/api/games/${uniqueId}/assignments`],
-    retry: 3,
+    retry: 5,
     enabled: !!uniqueId && !gameError,
+    refetchInterval: 5000,
+    onError: (error) => {
+      console.error("Assignments query error:", error);
+    }
   });
 
   const { data: bids = [], isLoading: isBidsLoading } = useQuery<Bid[]>({
     queryKey: [`/api/games/${uniqueId}/bids`],
-    retry: 3,
+    retry: 5,
     enabled: !!uniqueId && !gameError,
+    refetchInterval: 5000,
+    onError: (error) => {
+      console.error("Bids query error:", error);
+    }
   });
+
+  // Add a useEffect to handle loading state changes
+  useEffect(() => {
+    console.log("Loading state changed:", {
+      isGameLoading,
+      isItemsLoading,
+      isParticipantsLoading,
+      isAssignmentsLoading,
+      isBidsLoading,
+      game,
+      items,
+      participants,
+      assignments,
+      bids
+    });
+  }, [isGameLoading, isItemsLoading, isParticipantsLoading, isAssignmentsLoading, isBidsLoading, game, items, participants, assignments, bids]);
 
   // Convert server bid to client bid format
   const convertBidToInterest = (bid: Bid): ItemInterest => ({
@@ -415,12 +451,13 @@ export default function GamePage() {
   // Show loading state
   const isLoading = isGameLoading || isItemsLoading || isParticipantsLoading || isAssignmentsLoading || isBidsLoading;
   if (isLoading) {
-    console.log("Loading state:", {
+    console.log("In loading state:", {
       isGameLoading,
       isItemsLoading,
       isParticipantsLoading,
       isAssignmentsLoading,
-      isBidsLoading
+      isBidsLoading,
+      uniqueId
     });
     return (
       <div className="min-h-screen bg-background p-4">
@@ -430,6 +467,7 @@ export default function GamePage() {
               <div className="flex flex-col items-center justify-center gap-4">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 <p className="text-center text-muted-foreground">Loading game data...</p>
+                <p className="text-sm text-muted-foreground">This may take a few moments...</p>
               </div>
             </CardContent>
           </Card>
@@ -438,10 +476,15 @@ export default function GamePage() {
     );
   }
 
-  // Handle API errors
+  // Handle API errors with more detail
   if (gameError || itemsError) {
-    console.error("Game error:", gameError);
-    console.error("Items error:", itemsError);
+    console.error("Game or items error:", {
+      gameError,
+      itemsError,
+      uniqueId,
+      game,
+      items
+    });
     return (
       <div className="min-h-screen bg-background p-4">
         <div className="max-w-md mx-auto">
@@ -456,13 +499,20 @@ export default function GamePage() {
                     ? "This game has expired and is no longer accessible."
                     : gameError?.message || itemsError?.message || "Please try again"}
                 </p>
-                <Button
-                  variant="outline"
-                  className="mt-4"
-                  onClick={() => window.location.href = `${baseUrl}/#/`}
-                >
-                  Return Home
-                </Button>
+                <div className="flex gap-2 justify-center mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => window.location.reload()}
+                  >
+                    Retry
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => window.location.href = `${baseUrl}/#/`}
+                  >
+                    Return Home
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
