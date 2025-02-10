@@ -36,7 +36,7 @@ interface ItemInterest {
 }
 
 export default function GamePage() {
-  const { id } = useParams();
+  const { id, uniqueId } = useParams();
   const { toast } = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -53,29 +53,35 @@ export default function GamePage() {
 
   // Get base URL for GitHub Pages or development
   const baseUrl = import.meta.env.DEV ? '' : '/price-consensus-game';
-  const gameLink = `${window.location.protocol}//${window.location.host}${baseUrl}/#/game/${game?.uniqueId || id}`;
+  const gameLink = `${window.location.protocol}//${window.location.host}${baseUrl}/#/g/${uniqueId || id}`;
 
+  // Fetch game data using either uniqueId or numeric id
   const { data: game, error: gameError } = useQuery<Game>({
-    queryKey: [`/api/games/${id}`],
+    queryKey: [uniqueId ? `/api/games/by-id/${uniqueId}` : `/api/games/${id}`],
     retry: false,
   });
 
+  // Update other query keys to use game.id once we have it
+  const gameId = game?.id;
+
   const { data: items, error: itemsError } = useQuery<Item[]>({
-    queryKey: [`/api/games/${id}/items`],
-    retry: false,
+    queryKey: [`/api/games/${gameId}/items`],
+    enabled: !!gameId,
   });
 
   const { data: participants } = useQuery<Participant[]>({
-    queryKey: [`/api/games/${id}/participants`],
+    queryKey: [`/api/games/${gameId}/participants`],
+    enabled: !!gameId,
   });
 
   const { data: assignments } = useQuery<ItemAssignment[]>({
-    queryKey: [`/api/games/${id}/assignments`],
+    queryKey: [`/api/games/${gameId}/assignments`],
+    enabled: !!gameId,
   });
 
   const { data: bids = [] } = useQuery<Bid[]>({
-    queryKey: [`/api/games/${id}/bids`],
-    enabled: !!id,
+    queryKey: [`/api/games/${gameId}/bids`],
+    enabled: !!gameId,
   });
 
   // Convert server bid to client bid format
@@ -89,14 +95,14 @@ export default function GamePage() {
 
   const joinGame = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", `/api/games/${id}/participants`, {
+      const response = await apiRequest("POST", `/api/games/${gameId}/participants`, {
         name,
         email,
       });
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/participants`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/participants`] });
       setCurrentParticipant(data);
       setIsAddPlayerOpen(false);
       setName("");
@@ -107,9 +113,9 @@ export default function GamePage() {
 
   const createBid = useMutation({
     mutationFn: async (newBid: { itemId: number; price: number; needsConfirmation: boolean }) => {
-      if (!currentParticipant || !id) return;
+      if (!currentParticipant || !gameId) return;
       
-      const response = await apiRequest("POST", `/api/games/${id}/bids`, {
+      const response = await apiRequest("POST", `/api/games/${gameId}/bids`, {
         ...newBid,
         participantId: currentParticipant.id,
         price: newBid.price.toString(),
@@ -117,7 +123,7 @@ export default function GamePage() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/bids`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/bids`] });
     },
     onError: (error) => {
       toast({
@@ -136,7 +142,7 @@ export default function GamePage() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/bids`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/bids`] });
     },
     onError: (error) => {
       toast({
@@ -189,7 +195,7 @@ export default function GamePage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/items`] });
       setEditingItemId(null);
       setPreviewPrices({});
     },
@@ -319,7 +325,7 @@ export default function GamePage() {
       setTimeout(() => setShowConfetti(false), 10000); // Stop confetti after 10 seconds
       
       // Update game status to resolved
-      apiRequest("PATCH", `/api/games/${id}/status`, { status: "resolved" });
+      apiRequest("PATCH", `/api/games/${gameId}/status`, { status: "resolved" });
       
       // Scroll to results with a slight delay to ensure DOM is updated
       setTimeout(() => {
@@ -329,17 +335,17 @@ export default function GamePage() {
         });
       }, 100);
     }
-  }, [isGameResolved, id]);
+  }, [isGameResolved, gameId]);
 
   // Clear bids when game is reset
   const clearStoredBids = useCallback(async () => {
     // Delete all bids for this game
-    const gameBids = await queryClient.fetchQuery<Bid[]>({ queryKey: [`/api/games/${id}/bids`] });
+    const gameBids = await queryClient.fetchQuery<Bid[]>({ queryKey: [`/api/games/${gameId}/bids`] });
     for (const bid of gameBids) {
       await apiRequest("DELETE", `/api/bids/${bid.id}`);
     }
-    queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/bids`] });
-  }, [id]);
+    queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/bids`] });
+  }, [gameId]);
 
   // Add reset game mutation
   const resetGame = useMutation({
@@ -360,7 +366,7 @@ export default function GamePage() {
       await clearStoredBids();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/items`] });
       toast({ 
         title: "Success", 
         description: "Game has been reset. All prices have been equalized and bids cleared." 

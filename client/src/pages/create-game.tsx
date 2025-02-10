@@ -67,7 +67,7 @@ export default function CreateGame() {
     },
     onSuccess: (data) => {
       toast({ title: "Success", description: "Game created successfully" });
-      setLocation(`/game/${data.id}`);
+      setLocation(`/g/${data.uniqueId}`);
     },
     onError: () => {
       toast({
