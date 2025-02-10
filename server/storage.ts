@@ -1,4 +1,8 @@
 import { Game, InsertGame, Item, InsertItem, Participant, InsertParticipant, ItemAssignment, InsertItemAssignment } from "@shared/schema";
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
+import { games, items, participants, itemAssignments } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   createGame(game: InsertGame, creatorId: number): Promise<Game>;
@@ -19,125 +23,131 @@ export interface IStorage {
   removeItemAssignment(assignmentId: number): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private games: Map<number, Game>;
-  private items: Map<number, Item>;
-  private participants: Map<number, Participant>;
-  private itemAssignments: Map<number, ItemAssignment>;
-  private currentGameId: number;
-  private currentItemId: number;
-  private currentParticipantId: number;
-  private currentAssignmentId: number;
+export class PostgresStorage implements IStorage {
+  private db;
 
   constructor() {
-    this.games = new Map();
-    this.items = new Map();
-    this.participants = new Map();
-    this.itemAssignments = new Map();
-    this.currentGameId = 1;
-    this.currentItemId = 1;
-    this.currentParticipantId = 1;
-    this.currentAssignmentId = 1;
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    });
+    this.db = drizzle(pool);
   }
 
   async createGame(game: InsertGame, creatorId: number): Promise<Game> {
-    const id = this.currentGameId++;
-    const newGame: Game = {
-      ...game,
-      id,
-      totalPrice: game.totalPrice.toString(),
-      createdAt: new Date(),
-      lastActive: new Date(),
-      status: "active",
-      creatorId
-    };
-    this.games.set(id, newGame);
-    return newGame;
+    const totalPrice = Number(game.totalPrice);
+    if (isNaN(totalPrice)) {
+      throw new Error('Total price must be a valid number');
+    }
+    
+    const [created] = await this.db.insert(games)
+      .values({
+        title: game.title,
+        totalPrice: totalPrice.toString(),
+        creatorId,
+        createdAt: new Date(),
+        lastActive: new Date(),
+        status: "active"
+      })
+      .returning() as Game[];
+    return created;
   }
 
   async getGame(id: number): Promise<Game | undefined> {
-    return this.games.get(id);
+    const [game] = await this.db.select()
+      .from(games)
+      .where(eq(games.id, id))
+      .limit(1) as Game[];
+    return game;
   }
 
   async updateGameStatus(id: number, status: "active" | "inactive" | "completed"): Promise<void> {
-    const game = this.games.get(id);
-    if (game) {
-      this.games.set(id, { ...game, status });
-    }
+    await this.db.update(games)
+      .set({ status })
+      .where(eq(games.id, id));
   }
 
   async updateGameLastActive(id: number): Promise<void> {
-    const game = this.games.get(id);
-    if (game) {
-      this.games.set(id, { ...game, lastActive: new Date() });
-    }
+    await this.db.update(games)
+      .set({ lastActive: new Date() })
+      .where(eq(games.id, id));
   }
 
   async createItem(gameId: number, item: InsertItem): Promise<Item> {
-    const id = this.currentItemId++;
-    const newItem: Item = {
-      ...item,
-      id,
-      gameId,
-      currentPrice: item.currentPrice.toString(),
-    };
-    this.items.set(id, newItem);
-    return newItem;
+    const currentPrice = Number(item.currentPrice);
+    if (isNaN(currentPrice)) {
+      throw new Error('Current price must be a valid number');
+    }
+
+    const [created] = await this.db.insert(items)
+      .values({ 
+        title: item.title,
+        imageData: item.imageData,
+        currentPrice: currentPrice.toString(),
+        gameId
+      })
+      .returning() as Item[];
+    return created;
   }
 
   async getGameItems(gameId: number): Promise<Item[]> {
-    return Array.from(this.items.values()).filter(item => item.gameId === gameId);
+    return this.db.select()
+      .from(items)
+      .where(eq(items.gameId, gameId)) as Promise<Item[]>;
   }
 
   async updateItemPrice(id: number, price: number): Promise<void> {
-    const item = this.items.get(id);
-    if (item) {
-      this.items.set(id, { ...item, currentPrice: price.toString() });
-    }
+    await this.db.update(items)
+      .set({ currentPrice: price.toString() })
+      .where(eq(items.id, id));
   }
 
   async createParticipant(gameId: number, participant: InsertParticipant): Promise<Participant> {
-    const id = this.currentParticipantId++;
-    const newParticipant: Participant = {
-      ...participant,
-      id,
-      gameId,
-      email: participant.email || null,
-    };
-    this.participants.set(id, newParticipant);
-    return newParticipant;
+    const [created] = await this.db.insert(participants)
+      .values({ 
+        name: participant.name,
+        email: participant.email,
+        gameId 
+      })
+      .returning() as Participant[];
+    return created;
   }
 
   async getGameParticipants(gameId: number): Promise<Participant[]> {
-    return Array.from(this.participants.values()).filter(p => p.gameId === gameId);
+    return this.db.select()
+      .from(participants)
+      .where(eq(participants.gameId, gameId)) as Promise<Participant[]>;
   }
 
   async updateParticipantGameId(participantId: number, gameId: number): Promise<void> {
-    const participant = this.participants.get(participantId);
-    if (participant) {
-      participant.gameId = gameId;
-      this.participants.set(participantId, participant);
-    }
+    await this.db.update(participants)
+      .set({ gameId })
+      .where(eq(participants.id, participantId));
   }
 
   async createItemAssignment(assignment: InsertItemAssignment): Promise<ItemAssignment> {
-    const id = this.currentAssignmentId++;
-    const newAssignment: ItemAssignment = {
-      ...assignment,
-      id,
-      assignedAt: new Date(),
-    };
-    this.itemAssignments.set(id, newAssignment);
-    return newAssignment;
+    const [created] = await this.db.insert(itemAssignments)
+      .values({ 
+        itemId: assignment.itemId,
+        participantId: assignment.participantId,
+        gameId: assignment.gameId,
+        assignedAt: new Date() 
+      })
+      .returning() as ItemAssignment[];
+    return created;
   }
 
   async getItemAssignments(gameId: number): Promise<ItemAssignment[]> {
-    return Array.from(this.itemAssignments.values()).filter(a => a.gameId === gameId);
+    return this.db.select()
+      .from(itemAssignments)
+      .where(eq(itemAssignments.gameId, gameId)) as Promise<ItemAssignment[]>;
   }
 
   async removeItemAssignment(assignmentId: number): Promise<void> {
-    this.itemAssignments.delete(assignmentId);
+    await this.db.delete(itemAssignments)
+      .where(eq(itemAssignments.id, assignmentId));
   }
 }
 
-export const storage = new MemStorage();
+// Export a singleton instance
+export const storage = new PostgresStorage();

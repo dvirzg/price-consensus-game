@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import type { InferModel } from 'drizzle-orm';
 
 export const games = pgTable("games", {
   id: serial("id").primaryKey(),
@@ -22,7 +23,7 @@ export const items = pgTable("items", {
 
 export const participants = pgTable("participants", {
   id: serial("id").primaryKey(),
-  gameId: integer("game_id").references(() => games.id).notNull(),
+  gameId: integer("game_id"),
   name: text("name").notNull(),
   email: text("email"),
 });

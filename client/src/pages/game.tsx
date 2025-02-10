@@ -362,7 +362,9 @@ export default function GamePage() {
     );
   }
 
-  const gameLink = `${window.location.origin}/game/${id}`;
+  // Get the base path for GitHub Pages
+  const base = import.meta.env.DEV ? '' : '/price-consensus-game';
+  const gameLink = `${window.location.origin}${base}/game/${id}`;
   const lastActive = new Date(game.lastActive);
   const timeUntilExpiry = formatDistanceToNow(lastActive, { addSuffix: true });
 
