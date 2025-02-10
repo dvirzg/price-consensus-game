@@ -148,17 +148,17 @@ export default function CreateGame() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-background p-4">
       <div className="max-w-md mx-auto space-y-4">
         <Link href="/">
-          <Button variant="ghost" className="mb-4">
+          <Button variant="ghost" className="text-foreground hover:bg-accent">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
         </Link>
 
-        <Card className="w-full">
+        <Card className="w-full bg-card border-border">
           <CardHeader>
-            <CardTitle>Create New Game</CardTitle>
+            <CardTitle className="text-foreground">Create New Game</CardTitle>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -171,9 +171,9 @@ export default function CreateGame() {
                   name="title"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Game Title</FormLabel>
+                      <FormLabel className="text-foreground">Game Title</FormLabel>
                       <FormControl>
-                        <Input {...field} className="w-full" />
+                        <Input {...field} className="w-full bg-background border-input" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -185,13 +185,13 @@ export default function CreateGame() {
                   name="totalPrice"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Total Price</FormLabel>
+                      <FormLabel className="text-foreground">Total Price</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
                           step="0.01"
                           {...field}
-                          className="w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="w-full bg-background border-input [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           onChange={(e) => field.onChange(parseFloat(e.target.value))}
                         />
                       </FormControl>
@@ -205,9 +205,9 @@ export default function CreateGame() {
                   name="creatorName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Your Name</FormLabel>
+                      <FormLabel className="text-foreground">Your Name</FormLabel>
                       <FormControl>
-                        <Input {...field} className="w-full" />
+                        <Input {...field} className="w-full bg-background border-input" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -219,9 +219,9 @@ export default function CreateGame() {
                   name="creatorEmail"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Your Email (optional)</FormLabel>
+                      <FormLabel className="text-foreground">Your Email (optional)</FormLabel>
                       <FormControl>
-                        <Input {...field} className="w-full" type="email" />
+                        <Input {...field} className="w-full bg-background border-input" type="email" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -230,7 +230,7 @@ export default function CreateGame() {
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium">Items</h3>
+                    <h3 className="text-sm font-medium text-foreground">Items</h3>
                     <div className="flex gap-2">
                       <div className="relative group">
                         <input
@@ -250,7 +250,7 @@ export default function CreateGame() {
                           type="button" 
                           variant="outline" 
                           size="sm"
-                          className="pointer-events-none group-hover:bg-accent group-hover:text-accent-foreground"
+                          className="pointer-events-none group-hover:bg-accent group-hover:text-accent-foreground border-input"
                         >
                           <ImagePlus className="h-4 w-4 mr-2" />
                           Add Multiple Items
@@ -260,6 +260,7 @@ export default function CreateGame() {
                         type="button" 
                         variant="outline"
                         size="sm"
+                        className="border-input hover:bg-accent hover:text-accent-foreground"
                         onClick={addItem}
                       >
                         <Plus className="h-4 w-4 mr-2" />
@@ -270,19 +271,19 @@ export default function CreateGame() {
 
                   <div className="grid gap-6 sm:grid-cols-1">
                     {items.map((item, index) => (
-                      <div key={index} className="space-y-3 p-4 border rounded-lg bg-white shadow-sm">
+                      <div key={index} className="space-y-3 p-4 border rounded-lg bg-card border-border">
                         <div className="flex items-center justify-between">
                           <Input
                             placeholder="Item Title"
                             value={item.title}
-                            className="flex-1 mr-2"
+                            className="flex-1 mr-2 bg-background border-input"
                             onChange={(e) => updateItemTitle(index, e.target.value)}
                           />
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="shrink-0"
+                            className="shrink-0 hover:bg-accent hover:text-accent-foreground"
                             onClick={() => removeItem(index)}
                           >
                             <X className="h-4 w-4" />
@@ -290,7 +291,7 @@ export default function CreateGame() {
                         </div>
 
                         <label className="block cursor-pointer">
-                          <div className="relative border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                          <div className="relative border rounded-lg p-4 hover:bg-accent/50 border-input">
                             <input
                               type="file"
                               accept="image/*"
@@ -307,7 +308,7 @@ export default function CreateGame() {
                                 className="w-full h-40 sm:h-48 object-cover rounded"
                               />
                             ) : (
-                              <div className="flex flex-col items-center justify-center h-40 sm:h-48 text-gray-500 bg-gray-50 rounded">
+                              <div className="flex flex-col items-center justify-center h-40 sm:h-48 text-muted-foreground bg-accent/50 rounded">
                                 <Upload className="h-8 w-8 mb-2" />
                                 <span className="text-sm text-center">Tap to Upload Image</span>
                               </div>
