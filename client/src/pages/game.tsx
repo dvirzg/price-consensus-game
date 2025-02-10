@@ -846,7 +846,7 @@ export default function GamePage() {
                   </div>
                 );
               })}
-            </div>
+                        </div>
 
             {Object.keys(previewPrices).length > 0 && (
               <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2">
@@ -893,7 +893,7 @@ export default function GamePage() {
                     </div>
                   </CardContent>
                 </Card>
-              </div>
+                  </div>
             )}
           </>
         )}

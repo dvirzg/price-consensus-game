@@ -4,6 +4,7 @@ import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { ChevronUp, ChevronDown, X, Crown, Users } from "lucide-react";
 
@@ -39,6 +40,7 @@ export default function ItemCard({
   const [showImageModal, setShowImageModal] = useState(false);
   const [showAllBids, setShowAllBids] = useState(false);
   const [direction, setDirection] = useState<"up" | "down" | null>(null);
+  const { toast } = useToast();
   
   const priceSteps = [1, 5, 10, 50];
   const displayPrice = previewPrices?.[item.id] ?? Number(item.currentPrice);
@@ -52,18 +54,16 @@ export default function ItemCard({
 
   const handlePriceStep = (amount: number) => {
     const step = direction === "up" ? amount : -amount;
-    let newPrice;
+    let newPrice = Number(item.currentPrice) + step;
     
-    if (bids.length === 0) {
-      // If no bids, allow any price change
-      newPrice = Number(item.currentPrice) + step;
-    } else {
-      // If there are bids, must be higher than user's previous bid
-      const userPreviousBid = currentUserBid?.price || 0;
-      newPrice = Number(item.currentPrice) + step;
-      
-      // Ensure new price is at least as high as user's previous bid
-      if (newPrice < userPreviousBid) {
+    if (currentUserBid) {
+      // If there's a previous bid, check if new price would be lower
+      if (newPrice < currentUserBid.price) {
+        toast({
+          title: "Cannot lower bid",
+          description: `Your previous bid was $${currentUserBid.price.toFixed(2)}. You can only increase your bid.`,
+          variant: "destructive"
+        });
         return;
       }
     }
@@ -79,18 +79,16 @@ export default function ItemCard({
     const numericPrice = parseFloat(value);
     if (!isNaN(numericPrice)) {
       const step = direction === "up" ? numericPrice : -numericPrice;
-      let newPrice;
+      let newPrice = Number(item.currentPrice) + step;
       
-      if (bids.length === 0) {
-        // If no bids, allow any price change
-        newPrice = Number(item.currentPrice) + step;
-      } else {
-        // If there are bids, must be higher than user's previous bid
-        const userPreviousBid = currentUserBid?.price || 0;
-        newPrice = Number(item.currentPrice) + step;
-        
-        // Ensure new price is at least as high as user's previous bid
-        if (newPrice < userPreviousBid) {
+      if (currentUserBid) {
+        // If there's a previous bid, check if new price would be lower
+        if (newPrice < currentUserBid.price) {
+          toast({
+            title: "Cannot lower bid",
+            description: `Your previous bid was $${currentUserBid.price.toFixed(2)}. You can only increase your bid.`,
+            variant: "destructive"
+          });
           return;
         }
       }
