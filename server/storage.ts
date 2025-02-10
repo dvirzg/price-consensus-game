@@ -1,14 +1,10 @@
-import { Game, InsertGame, Item, InsertItem, Participant, InsertParticipant, ItemAssignment, InsertItemAssignment, Bid, InsertBid } from "@shared/schema";
-import { nanoid } from "nanoid";
+import { Game, InsertGame, Item, InsertItem, Participant, InsertParticipant, ItemAssignment, InsertItemAssignment } from "@shared/schema";
 
 export interface IStorage {
   createGame(game: InsertGame, creatorId: number): Promise<Game>;
   getGame(id: number): Promise<Game | undefined>;
-  getGameByUniqueId(uniqueId: string): Promise<Game | undefined>;
-  updateGameStatus(id: number, status: "active" | "resolved" | "expired"): Promise<void>;
+  updateGameStatus(id: number, status: "active" | "inactive" | "completed"): Promise<void>;
   updateGameLastActive(id: number): Promise<void>;
-  updateGameExpiry(id: number, expiresAt: Date): Promise<void>;
-  cleanupExpiredGames(): Promise<void>;
 
   createItem(gameId: number, item: InsertItem): Promise<Item>;
   getGameItems(gameId: number): Promise<Item[]>;
@@ -21,12 +17,6 @@ export interface IStorage {
   createItemAssignment(assignment: InsertItemAssignment): Promise<ItemAssignment>;
   getItemAssignments(gameId: number): Promise<ItemAssignment[]>;
   removeItemAssignment(assignmentId: number): Promise<void>;
-
-  createBid(bid: InsertBid): Promise<Bid>;
-  getGameBids(gameId: number): Promise<Bid[]>;
-  getItemBids(itemId: number): Promise<Bid[]>;
-  updateBid(bidId: number, price: number, needsConfirmation: boolean): Promise<void>;
-  removeBid(bidId: number): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -34,39 +24,30 @@ export class MemStorage implements IStorage {
   private items: Map<number, Item>;
   private participants: Map<number, Participant>;
   private itemAssignments: Map<number, ItemAssignment>;
-  private bids: Map<number, Bid>;
   private currentGameId: number;
   private currentItemId: number;
   private currentParticipantId: number;
   private currentAssignmentId: number;
-  private currentBidId: number;
 
   constructor() {
     this.games = new Map();
     this.items = new Map();
     this.participants = new Map();
     this.itemAssignments = new Map();
-    this.bids = new Map();
     this.currentGameId = 1;
     this.currentItemId = 1;
     this.currentParticipantId = 1;
     this.currentAssignmentId = 1;
-    this.currentBidId = 1;
   }
 
   async createGame(game: InsertGame, creatorId: number): Promise<Game> {
     const id = this.currentGameId++;
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000); // 48 hours from now
-
     const newGame: Game = {
+      ...game,
       id,
-      uniqueId: nanoid(10),
-      title: game.title,
       totalPrice: game.totalPrice.toString(),
-      createdAt: now,
-      lastActive: now,
-      expiresAt,
+      createdAt: new Date(),
+      lastActive: new Date(),
       status: "active",
       creatorId
     };
@@ -78,65 +59,17 @@ export class MemStorage implements IStorage {
     return this.games.get(id);
   }
 
-  async getGameByUniqueId(uniqueId: string): Promise<Game | undefined> {
-    return Array.from(this.games.values()).find(game => game.uniqueId === uniqueId);
-  }
-
-  async updateGameStatus(id: number, status: "active" | "resolved" | "expired"): Promise<void> {
+  async updateGameStatus(id: number, status: "active" | "inactive" | "completed"): Promise<void> {
     const game = this.games.get(id);
     if (game) {
-      const now = new Date();
-      let expiresAt = game.expiresAt;
-
-      // If game is resolved, set expiry to 12 hours from now
-      if (status === "resolved") {
-        expiresAt = new Date(now.getTime() + 12 * 60 * 60 * 1000);
-      }
-      // If game becomes active again, set expiry to 48 hours from now
-      else if (status === "active") {
-        expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-      }
-
-      this.games.set(id, { 
-        ...game, 
-        status,
-        expiresAt,
-        lastActive: now 
-      });
+      this.games.set(id, { ...game, status });
     }
   }
 
   async updateGameLastActive(id: number): Promise<void> {
     const game = this.games.get(id);
     if (game) {
-      const now = new Date();
-      // Update expiry time when game is accessed
-      const expiresAt = game.status === "resolved"
-        ? new Date(now.getTime() + 12 * 60 * 60 * 1000)  // 12 hours for resolved games
-        : new Date(now.getTime() + 48 * 60 * 60 * 1000); // 48 hours for active games
-
-      this.games.set(id, { 
-        ...game, 
-        lastActive: now,
-        expiresAt
-      });
-    }
-  }
-
-  async updateGameExpiry(id: number, expiresAt: Date): Promise<void> {
-    const game = this.games.get(id);
-    if (game) {
-      this.games.set(id, { ...game, expiresAt });
-    }
-  }
-
-  async cleanupExpiredGames(): Promise<void> {
-    const now = new Date();
-    const entries = Array.from(this.games.entries());
-    for (const [id, game] of entries) {
-      if (game.expiresAt <= now) {
-        this.games.delete(id);
-      }
+      this.games.set(id, { ...game, lastActive: new Date() });
     }
   }
 
@@ -204,44 +137,6 @@ export class MemStorage implements IStorage {
 
   async removeItemAssignment(assignmentId: number): Promise<void> {
     this.itemAssignments.delete(assignmentId);
-  }
-
-  async createBid(bid: InsertBid): Promise<Bid> {
-    const id = this.currentBidId++;
-    const newBid: Bid = {
-      ...bid,
-      id,
-      price: bid.price.toString(),
-      timestamp: new Date(),
-      needsConfirmation: bid.needsConfirmation ?? false,
-    };
-    this.bids.set(id, newBid);
-    return newBid;
-  }
-
-  async getGameBids(gameId: number): Promise<Bid[]> {
-    return Array.from(this.bids.values()).filter(bid => bid.gameId === gameId);
-  }
-
-  async getItemBids(itemId: number): Promise<Bid[]> {
-    return Array.from(this.bids.values()).filter(bid => bid.itemId === itemId);
-  }
-
-  async updateBid(bidId: number, price: number, needsConfirmation: boolean): Promise<void> {
-    const bid = this.bids.get(bidId);
-    if (!bid) {
-      throw new Error("Bid not found");
-    }
-    this.bids.set(bidId, {
-      ...bid,
-      price: price.toString(),
-      needsConfirmation,
-      timestamp: new Date(),
-    });
-  }
-
-  async removeBid(bidId: number): Promise<void> {
-    this.bids.delete(bidId);
   }
 }
 

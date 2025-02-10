@@ -1,35 +1,29 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGameSchema, insertItemSchema, insertParticipantSchema, insertItemAssignmentSchema, insertBidSchema } from "@shared/schema";
+import { insertGameSchema, insertItemSchema, insertParticipantSchema, insertItemAssignmentSchema } from "@shared/schema";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 
 export function registerRoutes(app: Express): Server {
-  // Add cleanup job
-  setInterval(async () => {
-    try {
-      await storage.cleanupExpiredGames();
-    } catch (err) {
-      console.error("Failed to cleanup expired games:", err);
-    }
-  }, 60 * 60 * 1000); // Run cleanup every hour
-
   app.post("/api/games", async (req, res) => {
     try {
       const { title, totalPrice, creatorName, creatorEmail } = req.body;
       const game = insertGameSchema.parse({ title, totalPrice });
       
+      // Create the creator participant first with the provided name
       const creator = await storage.createParticipant(0, {
-        name: creatorName || "Unknown Player",
+        name: creatorName || "Unknown Player",  // Ensure we have a default name
         email: creatorEmail || null
       });
       
-      // Create game with expiry time set to 48 hours from now
+      // Create the game with the creator
       const created = await storage.createGame(game, creator.id);
       
+      // Update the participant's gameId now that we have the game
       await storage.updateParticipantGameId(creator.id, created.id);
       
+      // Return both the game and the creator information
       res.json({
         ...created,
         creatorId: creator.id,
@@ -50,25 +44,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add route to get game by unique ID
-  app.get("/api/games/by-id/:uniqueId", async (req, res) => {
-    try {
-      const game = await storage.getGameByUniqueId(req.params.uniqueId);
-      if (!game) {
-        res.status(404).json({ message: "Game not found" });
-        return;
-      }
-
-      // Update last active timestamp
-      await storage.updateGameLastActive(game.id);
-      res.json(game);
-    } catch (err) {
-      console.error("Failed to get game:", err);
-      res.status(500).json({ message: "Failed to get game" });
-    }
-  });
-
-  // Update existing game route to also update last active
   app.get("/api/games/:id", async (req, res) => {
     try {
       const gameId = Number(req.params.id);
@@ -82,37 +57,10 @@ export function registerRoutes(app: Express): Server {
         res.status(404).json({ message: "Game not found" });
         return;
       }
-
-      // Update last active timestamp
-      await storage.updateGameLastActive(gameId);
       res.json(game);
     } catch (err) {
       console.error("Failed to get game:", err);
       res.status(500).json({ message: "Failed to get game" });
-    }
-  });
-
-  // Add route to update game status
-  app.patch("/api/games/:id/status", async (req, res) => {
-    try {
-      const gameId = Number(req.params.id);
-      const { status } = req.body;
-      
-      if (isNaN(gameId)) {
-        res.status(400).json({ message: "Invalid game ID" });
-        return;
-      }
-
-      if (!["active", "resolved", "expired"].includes(status)) {
-        res.status(400).json({ message: "Invalid status" });
-        return;
-      }
-
-      await storage.updateGameStatus(gameId, status);
-      res.json({ success: true });
-    } catch (err) {
-      console.error("Failed to update game status:", err);
-      res.status(500).json({ message: "Failed to update game status" });
     }
   });
 
@@ -151,14 +99,11 @@ export function registerRoutes(app: Express): Server {
   app.patch("/api/items/:id/price", async (req, res) => {
     try {
       const { price } = req.body;
-      const numericPrice = Number(price);
-      
-      if (isNaN(numericPrice)) {
+      if (typeof price !== "number") {
         res.status(400).json({ message: "Invalid price - must be a number" });
         return;
       }
-
-      await storage.updateItemPrice(Number(req.params.id), numericPrice);
+      await storage.updateItemPrice(Number(req.params.id), price);
       res.json({ success: true });
     } catch (err) {
       console.error("Failed to update price:", err);
@@ -243,100 +188,6 @@ export function registerRoutes(app: Express): Server {
     } catch (err) {
       console.error("Failed to remove assignment:", err);
       res.status(500).json({ message: "Failed to remove assignment" });
-    }
-  });
-
-  // Add bid endpoints
-  app.post("/api/games/:id/bids", async (req, res) => {
-    try {
-      const bid = insertBidSchema.parse({
-        ...req.body,
-        gameId: Number(req.params.id),
-      });
-      const created = await storage.createBid(bid);
-      res.json(created);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        const validationError = fromZodError(err);
-        res.status(400).json({ message: validationError.message });
-      } else {
-        console.error("Failed to create bid:", err);
-        res.status(500).json({ message: "Failed to create bid" });
-      }
-    }
-  });
-
-  app.get("/api/games/:id/bids", async (req, res) => {
-    try {
-      const gameId = Number(req.params.id);
-      if (isNaN(gameId)) {
-        res.status(400).json({ message: "Invalid game ID" });
-        return;
-      }
-
-      const bids = await storage.getGameBids(gameId);
-      res.json(bids);
-    } catch (err) {
-      console.error("Failed to get bids:", err);
-      res.status(500).json({ message: "Failed to get bids" });
-    }
-  });
-
-  app.get("/api/items/:id/bids", async (req, res) => {
-    try {
-      const itemId = Number(req.params.id);
-      if (isNaN(itemId)) {
-        res.status(400).json({ message: "Invalid item ID" });
-        return;
-      }
-
-      const bids = await storage.getItemBids(itemId);
-      res.json(bids);
-    } catch (err) {
-      console.error("Failed to get item bids:", err);
-      res.status(500).json({ message: "Failed to get item bids" });
-    }
-  });
-
-  app.patch("/api/bids/:id", async (req, res) => {
-    try {
-      const bidId = Number(req.params.id);
-      const { price, needsConfirmation } = req.body;
-      
-      if (isNaN(bidId)) {
-        res.status(400).json({ message: "Invalid bid ID" });
-        return;
-      }
-      if (typeof price !== "number") {
-        res.status(400).json({ message: "Invalid price - must be a number" });
-        return;
-      }
-      if (typeof needsConfirmation !== "boolean") {
-        res.status(400).json({ message: "Invalid needsConfirmation - must be a boolean" });
-        return;
-      }
-
-      await storage.updateBid(bidId, price, needsConfirmation);
-      res.json({ success: true });
-    } catch (err) {
-      console.error("Failed to update bid:", err);
-      res.status(500).json({ message: "Failed to update bid" });
-    }
-  });
-
-  app.delete("/api/bids/:id", async (req, res) => {
-    try {
-      const bidId = Number(req.params.id);
-      if (isNaN(bidId)) {
-        res.status(400).json({ message: "Invalid bid ID" });
-        return;
-      }
-
-      await storage.removeBid(bidId);
-      res.json({ success: true });
-    } catch (err) {
-      console.error("Failed to delete bid:", err);
-      res.status(500).json({ message: "Failed to delete bid" });
     }
   });
 

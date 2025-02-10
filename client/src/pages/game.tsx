@@ -1,11 +1,11 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams } from "wouter";
-import { Game as GameBase, Item, Participant, ItemAssignment, Bid } from "@shared/schema";
+import { Game as GameBase, Item, Participant, ItemAssignment } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import ItemCard from "@/components/item-card";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, Clock, Link as LinkIcon, Trophy, UserPlus, Users2 } from "lucide-react";
@@ -36,7 +36,7 @@ interface ItemInterest {
 }
 
 export default function GamePage() {
-  const { id, uniqueId } = useParams();
+  const { id } = useParams();
   const { toast } = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -44,6 +44,7 @@ export default function GamePage() {
   const [previewPrices, setPreviewPrices] = useState<{ [key: number]: number }>({});
   const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
+  const [itemInterests, setItemInterests] = useState<ItemInterest[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
   const [windowSize, setWindowSize] = useState({
     width: window.innerWidth,
@@ -51,76 +52,46 @@ export default function GamePage() {
   });
   const resultsRef = useRef<HTMLDivElement>(null);
 
-  // Get base URL for GitHub Pages or development
-  const baseUrl = import.meta.env.DEV ? '' : '/price-consensus-game';
-  const gameLink = `${window.location.protocol}//${window.location.host}${baseUrl}/#/g/${uniqueId || id}`;
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
 
-  // Fetch game data using either uniqueId or numeric id
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const { data: game, error: gameError } = useQuery<Game>({
-    queryKey: [uniqueId ? `/api/games/by-id/${uniqueId}` : `/api/games/${id}`],
+    queryKey: [`/api/games/${id}`],
     retry: false,
   });
 
-  // Update other query keys to use game.id once we have it
-  const gameId = game?.id;
-
   const { data: items, error: itemsError } = useQuery<Item[]>({
-    queryKey: [`/api/games/${gameId}/items`],
-    enabled: !!gameId,
+    queryKey: [`/api/games/${id}/items`],
+    retry: false,
   });
 
   const { data: participants } = useQuery<Participant[]>({
-    queryKey: [`/api/games/${gameId}/participants`],
-    enabled: !!gameId,
+    queryKey: [`/api/games/${id}/participants`],
   });
 
   const { data: assignments } = useQuery<ItemAssignment[]>({
-    queryKey: [`/api/games/${gameId}/assignments`],
-    enabled: !!gameId,
+    queryKey: [`/api/games/${id}/assignments`],
   });
-
-  const { data: bids = [] } = useQuery<Bid[]>({
-    queryKey: [`/api/games/${gameId}/bids`],
-    enabled: !!gameId,
-  });
-
-  // Convert server bid to client bid format
-  const convertBidToInterest = (bid: Bid): ItemInterest => {
-    let timestamp: number;
-    try {
-      if (typeof bid.timestamp === 'string') {
-        timestamp = new Date(bid.timestamp).getTime();
-      } else if (bid.timestamp instanceof Date) {
-        timestamp = bid.timestamp.getTime();
-      } else {
-        // Fallback to current timestamp if invalid
-        console.warn('Invalid timestamp format:', bid.timestamp);
-        timestamp = Date.now();
-      }
-    } catch (error) {
-      console.error('Error converting timestamp:', error);
-      timestamp = Date.now();
-    }
-
-    return {
-      itemId: bid.itemId,
-      participantId: bid.participantId,
-      price: Number(bid.price),
-      timestamp,
-      needsConfirmation: bid.needsConfirmation,
-    };
-  };
 
   const joinGame = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", `/api/games/${gameId}/participants`, {
+      const response = await apiRequest("POST", `/api/games/${id}/participants`, {
         name,
         email,
       });
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/participants`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/participants`] });
       setCurrentParticipant(data);
       setIsAddPlayerOpen(false);
       setName("");
@@ -129,170 +100,62 @@ export default function GamePage() {
     },
   });
 
-  const createBid = useMutation({
-    mutationFn: async (newBid: { itemId: number; price: number; needsConfirmation: boolean }) => {
-      if (!currentParticipant || !gameId) return;
-      
-      const response = await apiRequest("POST", `/api/games/${gameId}/bids`, {
-        ...newBid,
-        participantId: currentParticipant.id,
-        price: newBid.price.toString(),
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/bids`] });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
-
-  const updateBid = useMutation({
-    mutationFn: async ({ bidId, price, needsConfirmation }: { bidId: number; price: number; needsConfirmation: boolean }) => {
-      await apiRequest("PATCH", `/api/bids/${bidId}`, { 
-        price: price.toString(),
-        needsConfirmation 
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/bids`] });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
-
-  // Store current participant in localStorage to persist across refreshes
-  useEffect(() => {
-    if (!participants) return;
-    
-    try {
-      const storedParticipant = localStorage.getItem('currentParticipant');
-      if (storedParticipant) {
-        const parsed = JSON.parse(storedParticipant);
-        const found = participants.find(p => p.id === parsed.id);
-        if (found) {
-          setCurrentParticipant(found);
-        } else {
-          // If participant not found, clear storage
-          localStorage.removeItem('currentParticipant');
-          setCurrentParticipant(null);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading participant from storage:', error);
-      localStorage.removeItem('currentParticipant');
-      setCurrentParticipant(null);
-    }
-  }, [participants]);
-
-  // Update localStorage when participant changes
-  useEffect(() => {
-    try {
-      if (currentParticipant) {
-        localStorage.setItem('currentParticipant', JSON.stringify(currentParticipant));
-      } else {
-        localStorage.removeItem('currentParticipant');
-      }
-    } catch (error) {
-      console.error('Error saving participant to storage:', error);
-    }
-  }, [currentParticipant]);
-
-  // Handle participant selection
-  const handleParticipantSelect = (participant: Participant) => {
-    try {
-      setCurrentParticipant(participant);
-      localStorage.setItem('currentParticipant', JSON.stringify(participant));
-    } catch (error) {
-      console.error('Error setting participant:', error);
-      toast({
-        title: "Error",
-        description: "Failed to select participant",
-        variant: "destructive"
-      });
-    }
-  };
-
   const updatePrice = useMutation({
     mutationFn: async ({ itemId, price, isMainBid = false }: { itemId: number; price: number; isMainBid?: boolean }) => {
-      try {
-        // Convert price to number explicitly
-        const numericPrice = Number(price);
-        if (isNaN(numericPrice)) {
-          throw new Error("Invalid price value");
-        }
-
-        // First update the item's price
-        await apiRequest("PATCH", `/api/items/${itemId}/price`, { price: numericPrice });
-        
-        if (currentParticipant && isMainBid) {
-          // Get all bids for this item
-          const itemBids = bids.filter(bid => bid.itemId === itemId);
+      await apiRequest("PATCH", `/api/items/${itemId}/price`, { price });
+      
+      if (currentParticipant && isMainBid) {  // Only update interests for the main bid
+        setItemInterests(prev => {
+          // 1. Remove ALL previous interests by this participant
+          const filteredInterests = prev.filter(interest => 
+            interest.participantId !== currentParticipant.id
+          );
           
-          // Update or create the current participant's bid
-          const existingBid = itemBids.find(bid => bid.participantId === currentParticipant.id);
-          if (existingBid) {
-            await updateBid.mutateAsync({
-              bidId: existingBid.id,
-              price: numericPrice,
-              needsConfirmation: false
-            });
-          } else {
-            await createBid.mutateAsync({
-              itemId,
-              price: numericPrice,
-              needsConfirmation: false
-            });
-          }
+          // 2. Add new confirmed interest ONLY for the item being bid on
+          filteredInterests.push({
+            itemId,
+            participantId: currentParticipant.id,
+            price,
+            timestamp: Date.now(),
+            needsConfirmation: false
+          });
 
-          // Handle other participants' bids
-          const otherBids = itemBids.filter(bid => bid.participantId !== currentParticipant.id);
-          for (const bid of otherBids) {
-            const bidPrice = Number(bid.price);
-            // If the new price is higher than their bid, they need to confirm
-            if (numericPrice > bidPrice) {
-              await updateBid.mutateAsync({
-                bidId: bid.id,
-                price: bidPrice, // Keep their original bid price
-                needsConfirmation: true
+          // 3. For other items with changed prices, ONLY update confirmation status of OTHER players' existing interests
+          Object.entries(previewPrices).forEach(([affectedItemId, newPrice]) => {
+            const numericItemId = parseInt(affectedItemId);
+            if (numericItemId !== itemId) {  // Skip the item being bid on
+              filteredInterests.forEach((interest, index) => {
+                if (interest.itemId === numericItemId) {
+                  // Only update other players' interests if price increased
+                  const needsNewConfirmation = newPrice > interest.price;
+                  filteredInterests[index] = {
+                    ...interest,
+                    needsConfirmation: needsNewConfirmation
+                  };
+                }
               });
             }
-          }
-        }
-      } catch (error) {
-        console.error('Error updating price:', error);
-        throw error;
+          });
+
+          return filteredInterests;
+        });
       }
     },
     onSuccess: () => {
-      // Invalidate queries in sequence to ensure proper state updates
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/items`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/bids`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/items`] });
       setEditingItemId(null);
       setPreviewPrices({});
     },
     onError: (error) => {
-      console.error('Error in updatePrice mutation:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to update price",
+        description: error.message,
         variant: "destructive"
       });
-      setEditingItemId(null);
-      setPreviewPrices({});
     }
   });
 
+  // Confirm interest in an item at its current price
   const confirmInterest = useMutation({
     mutationFn: async ({ itemId }: { itemId: number }) => {
       if (!currentParticipant || !items) return;
@@ -300,36 +163,35 @@ export default function GamePage() {
       const item = items.find(i => i.id === itemId);
       if (!item) return;
 
-      const existingBid = bids.find(bid => 
-        bid.itemId === itemId && 
-        bid.participantId === currentParticipant.id
-      );
-
-      if (existingBid) {
-        await updateBid.mutateAsync({
-          bidId: existingBid.id,
-          price: Number(item.currentPrice),
-          needsConfirmation: false
-        });
-      } else {
-        await createBid.mutateAsync({
+      setItemInterests(prev => {
+        const newInterests = [...prev];
+        const existingInterestIndex = newInterests.findIndex(
+          interest => interest.itemId === itemId && interest.participantId === currentParticipant.id
+        );
+        
+        if (existingInterestIndex >= 0) {
+          newInterests[existingInterestIndex] = {
+            ...newInterests[existingInterestIndex],
+            price: Number(item.currentPrice),  // Update the confirmed price
+            timestamp: Date.now(),
+            needsConfirmation: false
+          };
+        } else {
+          // If no existing interest, create a new one
+          newInterests.push({
         itemId,
-          price: Number(item.currentPrice),
-          needsConfirmation: false
-        });
-      }
+            participantId: currentParticipant.id,
+            price: Number(item.currentPrice),
+            timestamp: Date.now(),
+            needsConfirmation: false
+          });
+        }
+
+        return newInterests;
+      });
     },
     onSuccess: () => {
-      // Invalidate queries in sequence
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/bids`] });
       toast({ title: "Success", description: "Interest confirmed at new price" });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
     }
   });
 
@@ -360,19 +222,19 @@ export default function GamePage() {
   const getItemBids = (itemId: number): { userId: number; userName: string; price: number; needsConfirmation: boolean }[] => {
     if (!participants) return [];
 
-    return bids
-      .filter(bid => bid.itemId === itemId)
-      .map(bid => ({
-        userId: bid.participantId,
-        userName: getParticipantName(bid.participantId),
-        price: Number(bid.price),
-        needsConfirmation: bid.needsConfirmation
+    return itemInterests
+      .filter(interest => interest.itemId === itemId)
+      .map(interest => ({
+        userId: interest.participantId,
+        userName: getParticipantName(interest.participantId),
+        price: interest.price,
+        needsConfirmation: interest.needsConfirmation
       }));
   };
 
   // Calculate if the game is resolved
   const isGameResolved = useMemo(() => {
-    if (!items || !participants || !game) return false;
+    if (!items || !participants) return false;
     
     // Game can only be resolved if number of participants equals number of items
     if (participants.length !== items.length) {
@@ -381,15 +243,15 @@ export default function GamePage() {
 
     // Check if total price matches
     const totalBidPrice = items.reduce((sum, item) => sum + Number(item.currentPrice), 0);
-    const priceMatches = Math.abs(totalBidPrice - Number(game.totalPrice)) < 0.01;
+    const priceMatches = Math.abs(totalBidPrice - Number(game?.totalPrice)) < 0.01;
 
     // Get current interests at current prices
     const currentInterests = items.map(item => {
       const itemPrice = Number(item.currentPrice);
-      return bids.filter(bid => 
-        bid.itemId === item.id && 
-        !bid.needsConfirmation &&
-        itemPrice <= Number(bid.price)  // Interest is valid if current price is less than or equal to confirmed price
+      return itemInterests.filter(interest => 
+        interest.itemId === item.id && 
+        !interest.needsConfirmation &&
+        itemPrice <= interest.price  // Interest is valid if current price is less than or equal to confirmed price
       );
     });
 
@@ -397,44 +259,26 @@ export default function GamePage() {
     const allItemsHaveOneInterest = currentInterests.every(interests => interests.length === 1);
 
     // Check if there are no interests needing confirmation
-    const noUnconfirmedInterests = !bids.some(bid => bid.needsConfirmation);
+    const noUnconfirmedInterests = !itemInterests.some(interest => interest.needsConfirmation);
 
     // Each participant must have exactly one valid interest
     const participantItemCounts = participants.map(participant => {
-      return bids.filter(bid => 
-        bid.participantId === participant.id && 
-        !bid.needsConfirmation &&
-        Number(items.find(item => item.id === bid.itemId)?.currentPrice || 0) <= Number(bid.price)
+      return itemInterests.filter(interest => 
+        interest.participantId === participant.id && 
+        !interest.needsConfirmation &&
+        Number(items.find(item => item.id === interest.itemId)?.currentPrice || 0) <= interest.price
       ).length;
     });
     const allParticipantsHaveOneItem = participantItemCounts.every(count => count === 1);
 
     return priceMatches && allItemsHaveOneInterest && noUnconfirmedInterests && allParticipantsHaveOneItem;
-  }, [items, participants, bids, game]);
+  }, [items, participants, itemInterests, game]);
 
   // Effect to handle game resolution
   useEffect(() => {
     if (isGameResolved) {
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 10000); // Stop confetti after 10 seconds
-      
-      // Update game status to resolved
-      const updateStatus = async () => {
-        try {
-          await apiRequest("PATCH", `/api/games/${gameId}/status`, { status: "resolved" });
-          // Invalidate game data to refresh the UI
-          queryClient.invalidateQueries({ queryKey: [uniqueId ? `/api/games/by-id/${uniqueId}` : `/api/games/${id}`] });
-        } catch (error) {
-          console.error('Failed to update game status:', error);
-          toast({
-            title: "Error",
-            description: "Failed to update game status",
-            variant: "destructive"
-          });
-        }
-      };
-      
-      updateStatus();
       
       // Scroll to results with a slight delay to ensure DOM is updated
       setTimeout(() => {
@@ -444,17 +288,7 @@ export default function GamePage() {
         });
       }, 100);
     }
-  }, [isGameResolved, gameId, id, uniqueId, queryClient]);
-
-  // Clear bids when game is reset
-  const clearStoredBids = useCallback(async () => {
-    // Delete all bids for this game
-    const gameBids = await queryClient.fetchQuery<Bid[]>({ queryKey: [`/api/games/${gameId}/bids`] });
-    for (const bid of gameBids) {
-      await apiRequest("DELETE", `/api/bids/${bid.id}`);
-    }
-    queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/bids`] });
-  }, [gameId]);
+  }, [isGameResolved]);
 
   // Add reset game mutation
   const resetGame = useMutation({
@@ -471,14 +305,14 @@ export default function GamePage() {
         });
       }
       
-      // Clear all bids from both state and storage
-      await clearStoredBids();
+      // Clear all interests
+      setItemInterests([]);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/items`] });
       toast({ 
         title: "Success", 
-        description: "Game has been reset. All prices have been equalized and bids cleared." 
+        description: "Game has been reset. All prices have been equalized and interests cleared." 
       });
     },
     onError: (error) => {
@@ -493,7 +327,7 @@ export default function GamePage() {
   // Handle API errors
   if (gameError || itemsError) {
     return (
-      <div className="min-h-screen bg-background p-4">
+      <div className="min-h-screen bg-gray-50 p-4">
         <div className="max-w-md mx-auto">
           <Card>
             <CardContent className="p-8">
@@ -502,16 +336,6 @@ export default function GamePage() {
                 <p className="text-sm mt-2">
                   {gameError?.message || itemsError?.message || "Please try again"}
                 </p>
-                <Button
-                  variant="outline"
-                  className="mt-4"
-                  onClick={() => {
-                    queryClient.invalidateQueries({ queryKey: [uniqueId ? `/api/games/by-id/${uniqueId}` : `/api/games/${id}`] });
-                    queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/items`] });
-                  }}
-                >
-                  Retry
-                </Button>
               </div>
             </CardContent>
           </Card>
@@ -523,7 +347,7 @@ export default function GamePage() {
   // Show loading state
   if (!game || !items) {
     return (
-      <div className="min-h-screen bg-background p-4">
+      <div className="min-h-screen bg-gray-50 p-4">
         <div className="max-w-md mx-auto">
           <Card>
             <CardContent className="p-8">
@@ -538,6 +362,7 @@ export default function GamePage() {
     );
   }
 
+  const gameLink = `${window.location.origin}/game/${id}`;
   const lastActive = new Date(game.lastActive);
   const timeUntilExpiry = formatDistanceToNow(lastActive, { addSuffix: true });
 
@@ -661,10 +486,10 @@ export default function GamePage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {items.map(item => {
-                        const assignedTo = bids.find(bid => 
-                          bid.itemId === item.id && 
-                          !bid.needsConfirmation &&
-                          Math.abs(Number(item.currentPrice) - Number(bid.price)) < 0.01
+                        const assignedTo = itemInterests.find(interest => 
+                          interest.itemId === item.id && 
+                          !interest.needsConfirmation &&
+                          Math.abs(Number(item.currentPrice) - interest.price) < 0.01
                         );
 
                         if (!assignedTo) return null;
@@ -699,11 +524,11 @@ export default function GamePage() {
                       {participants?.map(participant => {
                         const totalSpent = items
                           .filter(item => 
-                            bids.some(bid => 
-                              bid.itemId === item.id && 
-                              bid.participantId === participant.id &&
-                              !bid.needsConfirmation &&
-                              Math.abs(Number(item.currentPrice) - Number(bid.price)) < 0.01
+                            itemInterests.some(interest => 
+                              interest.itemId === item.id && 
+                              interest.participantId === participant.id &&
+                              !interest.needsConfirmation &&
+                              Math.abs(Number(item.currentPrice) - interest.price) < 0.01
                             )
                           )
                           .reduce((sum, item) => sum + Number(item.currentPrice), 0);
@@ -726,18 +551,20 @@ export default function GamePage() {
                         <span className="text-foreground">Progress to resolution</span>
                         <span className="text-muted-foreground">
                           {items?.filter(item => 
-                            bids.some(bid => 
-                              bid.itemId === item.id && 
-                              !bid.needsConfirmation
+                            itemInterests.some(interest => 
+                              interest.itemId === item.id && 
+                              Math.abs(interest.price - Number(item.currentPrice)) < 0.01 &&
+                              !interest.needsConfirmation
                             )
                           ).length || 0} of {items?.length || 0} items have confirmed buyers
                         </span>
                       </div>
                       <Progress 
                         value={((items?.filter(item => 
-                          bids.some(bid => 
-                            bid.itemId === item.id && 
-                            !bid.needsConfirmation
+                          itemInterests.some(interest => 
+                            interest.itemId === item.id && 
+                            Math.abs(interest.price - Number(item.currentPrice)) < 0.01 &&
+                            !interest.needsConfirmation
                           )
                         ).length || 0) / (items?.length || 1)) * 100} 
                         className="h-2 bg-secondary"
@@ -750,36 +577,36 @@ export default function GamePage() {
                         <div className="space-y-2">
                           {participants?.map(participant => {
                             // Check if participant has any bids
-                            const hasBids = bids.some(bid => 
-                              bid.participantId === participant.id
+                            const hasBids = itemInterests.some(interest => 
+                              interest.participantId === participant.id
                             );
 
                             // Check if participant has any interests needing confirmation
-                            const hasUnconfirmedInterests = bids.some(bid => 
-                              bid.participantId === participant.id && 
-                              bid.needsConfirmation
+                            const hasUnconfirmedInterests = itemInterests.some(interest => 
+                              interest.participantId === participant.id && 
+                              interest.needsConfirmation
                             );
 
                             // Check if participant has been outbid on any items
                             const outbidItems = items?.filter(item => {
-                              const participantBid = bids.find(bid => 
-                                bid.itemId === item.id && 
-                                bid.participantId === participant.id &&
-                                !bid.needsConfirmation
+                              const participantBid = itemInterests.find(interest => 
+                                interest.itemId === item.id && 
+                                interest.participantId === participant.id &&
+                                !interest.needsConfirmation
                               );
-                              const highestBid = bids
-                                .filter(bid => bid.itemId === item.id && !bid.needsConfirmation)
-                                .sort((a, b) => Number(b.price) - Number(a.price))[0];
+                              const highestBid = itemInterests
+                                .filter(interest => interest.itemId === item.id && !interest.needsConfirmation)
+                                .sort((a, b) => b.price - a.price)[0];
                               
-                              return participantBid && highestBid && Number(highestBid.price) > Number(participantBid.price);
+                              return participantBid && highestBid && highestBid.price > participantBid.price;
                             });
 
                             // Get items that need confirmation
                             const itemsNeedingConfirmation = items?.filter(item => 
-                              bids.some(bid => 
-                                bid.participantId === participant.id && 
-                                bid.itemId === item.id &&
-                                bid.needsConfirmation
+                              itemInterests.some(interest => 
+                                interest.participantId === participant.id && 
+                                interest.itemId === item.id &&
+                                interest.needsConfirmation
                               )
                             );
 
@@ -820,19 +647,19 @@ export default function GamePage() {
                             return null;
                           })}
                           {participants?.every(participant => 
-                            bids.some(bid => 
-                              bid.participantId === participant.id
+                            itemInterests.some(interest => 
+                              interest.participantId === participant.id
                             ) &&
-                            !bids.some(bid =>
-                              bid.participantId === participant.id &&
-                              bid.needsConfirmation
+                            !itemInterests.some(interest =>
+                              interest.participantId === participant.id &&
+                              interest.needsConfirmation
                             )
-                          ) && !bids.some(bid => bid.needsConfirmation) && 
+                          ) && !itemInterests.some(interest => interest.needsConfirmation) && 
                           items?.every(item => 
-                            bids.some(bid => 
-                              bid.itemId === item.id && 
-                              !bid.needsConfirmation &&
-                              Math.abs(Number(bid.price) - Number(item.currentPrice)) < 0.01
+                            itemInterests.some(interest => 
+                              interest.itemId === item.id && 
+                              !interest.needsConfirmation &&
+                              Math.abs(interest.price - Number(item.currentPrice)) < 0.01
                             )
                           ) && (
                             <div className="text-sm text-muted-foreground">
@@ -850,22 +677,22 @@ export default function GamePage() {
                           <div key={item.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50">
                             <span className="truncate">{item.title}:</span>
                             <div className="flex items-center gap-2">
-                              {bids
-                                .filter(bid => 
-                                  bid.itemId === item.id && 
-                                  !bid.needsConfirmation
+                              {itemInterests
+                                .filter(interest => 
+                                  interest.itemId === item.id && 
+                                  Math.abs(interest.price - Number(item.currentPrice)) < 0.01
                                 )
-                                .map(bid => (
-                                  <div key={bid.participantId} className="flex items-center gap-1">
-                                    <span>{getParticipantName(bid.participantId)}</span>
-                                    {bid.needsConfirmation && (
+                                .map(interest => (
+                                  <div key={interest.participantId} className="flex items-center gap-1">
+                                    <span>{getParticipantName(interest.participantId)}</span>
+                                    {interest.needsConfirmation && (
                                       <span className="text-yellow-500 dark:text-yellow-400">(needs confirmation)</span>
                                     )}
                                   </div>
                                 ))}
-                              {!bids.some(bid => 
-                                bid.itemId === item.id && 
-                                !bid.needsConfirmation
+                              {!itemInterests.some(interest => 
+                                interest.itemId === item.id && 
+                                Math.abs(interest.price - Number(item.currentPrice)) < 0.01
                               ) && "No interest"}
                             </div>
                           </div>
@@ -950,7 +777,7 @@ export default function GamePage() {
                         key={participant.id}
                         variant={currentParticipant?.id === participant.id ? "default" : "ghost"}
                         className={`w-full justify-start h-9 px-3 ${currentParticipant?.id === participant.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
-                        onClick={() => handleParticipantSelect(participant)}
+                        onClick={() => setCurrentParticipant(participant)}
                       >
                         <span className="truncate">
                           {participant.name}
@@ -969,15 +796,12 @@ export default function GamePage() {
               {items.map((item) => {
                 const itemBids = getItemBids(item.id);
                 const currentUserBid = currentParticipant ? 
-                  bids.find(bid => 
-                    bid.itemId === item.id && 
-                    bid.participantId === currentParticipant.id
-                  ) ? convertBidToInterest(bids.find(bid => 
-                    bid.itemId === item.id && 
-                    bid.participantId === currentParticipant.id
-                  )!) : null : null;
+                  itemInterests.find(interest => 
+                    interest.itemId === item.id && 
+                    interest.participantId === currentParticipant.id
+                  ) || null : null;
                 const highestBid = itemBids.reduce((highest, current) => 
-                  !highest || Number(current.price) > Number(highest.price) ? current : highest
+                  !highest || current.price > highest.price ? current : highest
                 , null as { userId: number; userName: string; price: number; needsConfirmation: boolean } | null);
 
                 return (
@@ -1022,7 +846,7 @@ export default function GamePage() {
                   </div>
                 );
               })}
-                        </div>
+            </div>
 
             {Object.keys(previewPrices).length > 0 && (
               <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2">
@@ -1032,34 +856,26 @@ export default function GamePage() {
                       <Button
                         onClick={async () => {
                           if (!editingItemId) return;
-                          try {
-                            // Update the main bid item first
-                            const mainBidPrice = previewPrices[editingItemId];
-                            await updatePrice.mutateAsync({ 
-                              itemId: editingItemId, 
-                              price: mainBidPrice,
-                              isMainBid: true
-                            });
 
-                            // Then update other items' prices without creating interests
-                            const otherUpdates = Object.entries(previewPrices)
-                              .filter(([itemId]) => parseInt(itemId) !== editingItemId)
-                              .map(([itemId, price]) => ({
-                                itemId: parseInt(itemId),
-                                price,
-                                isMainBid: false
-                              }));
+                          // Update the main bid item first
+                          const mainBidPrice = previewPrices[editingItemId];
+                          await updatePrice.mutate({ 
+                            itemId: editingItemId, 
+                            price: mainBidPrice,
+                            isMainBid: true
+                          });
 
-                            for (const update of otherUpdates) {
-                              await updatePrice.mutateAsync(update);
-                            }
-                          } catch (error) {
-                            console.error('Error submitting bid:', error);
-                            toast({
-                              title: "Error",
-                              description: "Failed to submit bid. Please try again.",
-                              variant: "destructive"
-                            });
+                          // Then update other items' prices without creating interests
+                          const otherUpdates = Object.entries(previewPrices)
+                            .filter(([itemId]) => parseInt(itemId) !== editingItemId)
+                            .map(([itemId, price]) => ({
+                              itemId: parseInt(itemId),
+                              price,
+                              isMainBid: false
+                            }));
+
+                          for (const update of otherUpdates) {
+                            await updatePrice.mutate(update);
                           }
                         }}
                       >
@@ -1077,7 +893,7 @@ export default function GamePage() {
                     </div>
                   </CardContent>
                 </Card>
-                  </div>
+              </div>
             )}
           </>
         )}

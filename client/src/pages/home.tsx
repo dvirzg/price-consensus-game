@@ -19,9 +19,7 @@ export default function Home() {
       });
       return;
     }
-    // Use hash-based routing for GitHub Pages compatibility
-    const baseUrl = import.meta.env.DEV ? '' : '/price-consensus-game';
-    window.location.href = `${baseUrl}/#/game/${gameId}`;
+    window.location.href = `/game/${gameId}`;
   };
 
   return (
