@@ -1,4 +1,4 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient, QueryFunction, QueryKey, UseQueryOptions } from "@tanstack/react-query";
 
 // Get base URL for GitHub Pages or development
 const baseUrl = import.meta.env.DEV ? 'http://localhost:5000' : 'https://price-consensus-game-production.up.railway.app';
@@ -102,29 +102,40 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
-      retry: 5,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      retry: (failureCount: number, error: Error) => {
+        // Don't retry on 404s after the first attempt
+        if (error.message.includes('404') && failureCount > 0) {
+          return false;
+        }
+        // Retry other errors up to 5 times
+        return failureCount < 5;
+      },
+      retryDelay: (attemptIndex) => {
+        // Exponential backoff with jitter
+        const baseDelay = Math.min(1000 * 2 ** attemptIndex, 30000);
+        const jitter = Math.random() * 200;
+        return baseDelay + jitter;
+      },
       staleTime: 0,
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
       refetchOnMount: true,
-      refetchInterval: (data) => {
+      refetchInterval: (data: unknown) => {
         // If we have no data, retry every second
         if (!data) return 1000;
         // If we have data but it's incomplete, retry every 5 seconds
         if (typeof data === 'object' && (!data || Object.keys(data).length === 0)) return 5000;
         // Otherwise, don't refetch automatically
         return false;
-      },
-      onError: (error) => {
-        console.error('Query error:', error);
       }
     },
     mutations: {
       retry: 5,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-      onError: (error) => {
-        console.error('Mutation error:', error);
+      retryDelay: (attemptIndex) => {
+        // Exponential backoff with jitter
+        const baseDelay = Math.min(1000 * 2 ** attemptIndex, 30000);
+        const jitter = Math.random() * 200;
+        return baseDelay + jitter;
       }
     },
   },

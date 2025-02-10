@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import cors from "cors";
+import { Server } from "http";
 
 const app = express();
 
@@ -83,19 +84,52 @@ app.use((req, res, next) => {
   });
 
   // Graceful shutdown handling
-  process.on('SIGTERM', () => {
-    log('SIGTERM signal received. Closing HTTP server...');
-    runningServer.close(() => {
-      log('HTTP server closed');
+  const shutdown = async (signal: string) => {
+    log(`${signal} signal received. Starting graceful shutdown...`);
+    
+    // Give ongoing requests a chance to complete (5 second timeout)
+    const shutdownTimeout = setTimeout(() => {
+      log('Shutdown timeout reached. Forcing exit.');
+      process.exit(1);
+    }, 5000);
+
+    try {
+      // Stop accepting new connections
+      await new Promise<void>((resolve) => {
+        runningServer.close(() => {
+          log('HTTP server closed');
+          resolve();
+        });
+      });
+
+      // Log final state before shutdown
+      log('Server shutting down, active connections closed');
+
+      clearTimeout(shutdownTimeout);
+      log('Graceful shutdown completed');
       process.exit(0);
-    });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error during shutdown';
+      log('Error during shutdown:', errorMessage);
+      process.exit(1);
+    }
+  };
+
+  // Handle various termination signals
+  const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT'];
+  signals.forEach(signal => {
+    process.on(signal, () => shutdown(signal));
   });
 
-  process.on('SIGINT', () => {
-    log('SIGINT signal received. Closing HTTP server...');
-    runningServer.close(() => {
-      log('HTTP server closed');
-      process.exit(0);
-    });
+  // Log uncaught exceptions and rejections
+  process.on('uncaughtException', (err: Error) => {
+    log('Uncaught exception:', err.message);
+    shutdown('UNCAUGHT_EXCEPTION');
+  });
+
+  process.on('unhandledRejection', (reason: unknown) => {
+    const message = reason instanceof Error ? reason.message : 'Unknown rejection reason';
+    log('Unhandled rejection:', message);
+    shutdown('UNHANDLED_REJECTION');
   });
 })();
