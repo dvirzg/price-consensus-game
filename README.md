@@ -43,4 +43,4 @@ A mobile-optimized web application for collaborative price allocation, designed 
    - Game completes when consensus is reached
 
 ## Try It Out
-Visit [https://dvirzg.github.io/price-consensus-game](https://dvirzg.github.io/price-consensus-game) to start playing!
+Visit [https://dvirzg.github.io/price-consensus-game](https://dvirzg.github.io/price-consensus-game) to start playing.
