@@ -61,7 +61,7 @@ export default function ItemCard({
       if (newPrice < currentUserBid.price) {
         toast({
           title: "Cannot lower bid",
-          description: `Your previous bid was $${currentUserBid.price.toFixed(2)}. You can only increase your bid.`,
+          description: `Your previous bid was $${currentUserBid.price.toFixed(2)}. You can bid the same amount or increase it.`,
           variant: "destructive"
         });
         return;
@@ -86,7 +86,7 @@ export default function ItemCard({
         if (newPrice < currentUserBid.price) {
           toast({
             title: "Cannot lower bid",
-            description: `Your previous bid was $${currentUserBid.price.toFixed(2)}. You can only increase your bid.`,
+            description: `Your previous bid was $${currentUserBid.price.toFixed(2)}. You can bid the same amount or increase it.`,
             variant: "destructive"
           });
           return;
