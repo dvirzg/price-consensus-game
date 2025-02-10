@@ -1,10 +1,11 @@
 import { Game, InsertGame, Item, InsertItem, Participant, InsertParticipant, ItemAssignment, InsertItemAssignment, Bid, InsertBid } from "@shared/schema";
 
 export interface IStorage {
-  createGame(game: InsertGame, creatorId: number): Promise<Game>;
+  createGame(game: Omit<Game, 'id'>): Promise<Game>;
   getGame(id: number): Promise<Game | undefined>;
-  updateGameStatus(id: number, status: "active" | "inactive" | "completed"): Promise<void>;
-  updateGameLastActive(id: number): Promise<void>;
+  getGameByUniqueId(uniqueId: string): Promise<Game | undefined>;
+  updateGameStatus(id: number, status: "active" | "inactive" | "completed", lastActive: Date, expiresAt: Date): Promise<void>;
+  updateGameActivity(id: number, lastActive: Date, expiresAt: Date): Promise<void>;
 
   createItem(gameId: number, item: InsertItem): Promise<Item>;
   getGameItems(gameId: number): Promise<Item[]>;
@@ -50,16 +51,11 @@ export class MemStorage implements IStorage {
     this.currentBidId = 1;
   }
 
-  async createGame(game: InsertGame, creatorId: number): Promise<Game> {
+  async createGame(game: Omit<Game, 'id'>): Promise<Game> {
     const id = this.currentGameId++;
     const newGame: Game = {
       ...game,
       id,
-      totalPrice: game.totalPrice.toString(),
-      createdAt: new Date(),
-      lastActive: new Date(),
-      status: "active",
-      creatorId
     };
     this.games.set(id, newGame);
     return newGame;
@@ -69,17 +65,30 @@ export class MemStorage implements IStorage {
     return this.games.get(id);
   }
 
-  async updateGameStatus(id: number, status: "active" | "inactive" | "completed"): Promise<void> {
+  async getGameByUniqueId(uniqueId: string): Promise<Game | undefined> {
+    return Array.from(this.games.values()).find(game => game.uniqueId === uniqueId);
+  }
+
+  async updateGameStatus(id: number, status: "active" | "inactive" | "completed", lastActive: Date, expiresAt: Date): Promise<void> {
     const game = this.games.get(id);
     if (game) {
-      this.games.set(id, { ...game, status });
+      this.games.set(id, { 
+        ...game, 
+        status,
+        lastActive,
+        expiresAt
+      });
     }
   }
 
-  async updateGameLastActive(id: number): Promise<void> {
+  async updateGameActivity(id: number, lastActive: Date, expiresAt: Date): Promise<void> {
     const game = this.games.get(id);
     if (game) {
-      this.games.set(id, { ...game, lastActive: new Date() });
+      this.games.set(id, { 
+        ...game, 
+        lastActive,
+        expiresAt
+      });
     }
   }
 

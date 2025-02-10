@@ -4,6 +4,13 @@ import { storage } from "./storage";
 import { insertGameSchema, insertItemSchema, insertParticipantSchema, insertItemAssignmentSchema, insertBidSchema } from "@shared/schema";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
+import { nanoid } from 'nanoid';
+
+// Helper function to calculate expiry time
+function calculateExpiryTime(status: "active" | "inactive" | "completed", lastActive: Date): Date {
+  const expiryHours = status === "completed" ? 12 : 48;
+  return new Date(lastActive.getTime() + expiryHours * 60 * 60 * 1000);
+}
 
 export function registerRoutes(app: Express): Server {
   app.post("/api/games", async (req, res) => {
@@ -13,12 +20,18 @@ export function registerRoutes(app: Express): Server {
       
       // Create the creator participant first with the provided name
       const creator = await storage.createParticipant(0, {
-        name: creatorName || "Unknown Player",  // Ensure we have a default name
+        name: creatorName || "Unknown Player",
         email: creatorEmail || null
       });
       
-      // Create the game with the creator
-      const created = await storage.createGame(game, creator.id);
+      // Create the game with the creator and unique ID
+      const uniqueId = nanoid(10); // Generate a unique 10-character ID
+      const created = await storage.createGame({
+        ...game,
+        uniqueId,
+        creatorId: creator.id,
+        expiresAt: calculateExpiryTime("active", new Date())
+      });
       
       // Update the participant's gameId now that we have the game
       await storage.updateParticipantGameId(creator.id, created.id);
@@ -44,23 +57,60 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/games/:id", async (req, res) => {
+  app.get("/api/games/:uniqueId", async (req, res) => {
     try {
-      const gameId = Number(req.params.id);
-      if (isNaN(gameId)) {
-        res.status(400).json({ message: "Invalid game ID" });
-        return;
-      }
-
-      const game = await storage.getGame(gameId);
+      const game = await storage.getGameByUniqueId(req.params.uniqueId);
       if (!game) {
         res.status(404).json({ message: "Game not found" });
         return;
       }
+
+      // Check if game has expired
+      const now = new Date();
+      if (game.expiresAt && now > game.expiresAt) {
+        res.status(410).json({ message: "Game has expired" });
+        return;
+      }
+
+      // Update last active time and expiry for active games
+      if (game.status === "active") {
+        const lastActive = new Date();
+        const expiresAt = calculateExpiryTime(game.status, lastActive);
+        await storage.updateGameActivity(game.id, lastActive, expiresAt);
+        game.lastActive = lastActive;
+        game.expiresAt = expiresAt;
+      }
+
       res.json(game);
     } catch (err) {
       console.error("Failed to get game:", err);
       res.status(500).json({ message: "Failed to get game" });
+    }
+  });
+
+  // Update game status endpoint
+  app.patch("/api/games/:uniqueId/status", async (req, res) => {
+    try {
+      const { status } = req.body;
+      if (!status || !["active", "inactive", "completed"].includes(status)) {
+        res.status(400).json({ message: "Invalid status" });
+        return;
+      }
+
+      const game = await storage.getGameByUniqueId(req.params.uniqueId);
+      if (!game) {
+        res.status(404).json({ message: "Game not found" });
+        return;
+      }
+
+      const lastActive = new Date();
+      const expiresAt = calculateExpiryTime(status as "active" | "inactive" | "completed", lastActive);
+      await storage.updateGameStatus(game.id, status as "active" | "inactive" | "completed", lastActive, expiresAt);
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Failed to update game status:", err);
+      res.status(500).json({ message: "Failed to update game status" });
     }
   });
 

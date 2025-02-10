@@ -36,7 +36,7 @@ interface ItemInterest {
 }
 
 export default function GamePage() {
-  const { id } = useParams();
+  const { id: uniqueId } = useParams();
   const { toast } = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -53,29 +53,38 @@ export default function GamePage() {
 
   // Get base URL for GitHub Pages or development
   const baseUrl = import.meta.env.DEV ? '' : '/price-consensus-game';
-  const gameLink = `${window.location.protocol}//${window.location.host}${baseUrl}/#/game/${id}`;
+  const gameLink = `${window.location.protocol}//${window.location.host}${baseUrl}/#/game/${uniqueId}`;
 
   const { data: game, error: gameError } = useQuery<Game>({
-    queryKey: [`/api/games/${id}`],
+    queryKey: [`/api/games/${uniqueId}`],
     retry: false,
+    onError: (error: any) => {
+      if (error.status === 410) {
+        toast({
+          title: "Game Expired",
+          description: "This game has expired and is no longer accessible.",
+          variant: "destructive"
+        });
+      }
+    }
   });
 
   const { data: items, error: itemsError } = useQuery<Item[]>({
-    queryKey: [`/api/games/${id}/items`],
+    queryKey: [`/api/games/${uniqueId}/items`],
     retry: false,
   });
 
   const { data: participants } = useQuery<Participant[]>({
-    queryKey: [`/api/games/${id}/participants`],
+    queryKey: [`/api/games/${uniqueId}/participants`],
   });
 
   const { data: assignments } = useQuery<ItemAssignment[]>({
-    queryKey: [`/api/games/${id}/assignments`],
+    queryKey: [`/api/games/${uniqueId}/assignments`],
   });
 
   const { data: bids = [] } = useQuery<Bid[]>({
-    queryKey: [`/api/games/${id}/bids`],
-    enabled: !!id,
+    queryKey: [`/api/games/${uniqueId}/bids`],
+    enabled: !!uniqueId,
   });
 
   // Convert server bid to client bid format
@@ -89,14 +98,14 @@ export default function GamePage() {
 
   const joinGame = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", `/api/games/${id}/participants`, {
+      const response = await apiRequest("POST", `/api/games/${uniqueId}/participants`, {
         name,
         email,
       });
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/participants`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${uniqueId}/participants`] });
       setCurrentParticipant(data);
       setIsAddPlayerOpen(false);
       setName("");
@@ -107,9 +116,9 @@ export default function GamePage() {
 
   const createBid = useMutation({
     mutationFn: async (newBid: { itemId: number; price: number; needsConfirmation: boolean }) => {
-      if (!currentParticipant || !id) return;
+      if (!currentParticipant || !uniqueId) return;
       
-      const response = await apiRequest("POST", `/api/games/${id}/bids`, {
+      const response = await apiRequest("POST", `/api/games/${uniqueId}/bids`, {
         ...newBid,
         participantId: currentParticipant.id,
         price: newBid.price.toString(),
@@ -117,7 +126,7 @@ export default function GamePage() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/bids`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${uniqueId}/bids`] });
     },
     onError: (error) => {
       toast({
@@ -136,7 +145,7 @@ export default function GamePage() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/bids`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${uniqueId}/bids`] });
     },
     onError: (error) => {
       toast({
@@ -161,13 +170,13 @@ export default function GamePage() {
         if (existingBid) {
           await updateBid.mutateAsync({
             bidId: existingBid.id,
-            price,
+            price: Number(price),
             needsConfirmation: false
           });
         } else {
           await createBid.mutateAsync({
             itemId,
-            price,
+            price: Number(price),
             needsConfirmation: false
           });
         }
@@ -189,7 +198,7 @@ export default function GamePage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${uniqueId}/items`] });
       setEditingItemId(null);
       setPreviewPrices({});
     },
@@ -328,15 +337,25 @@ export default function GamePage() {
     }
   }, [isGameResolved]);
 
+  // Update game status when resolved
+  useEffect(() => {
+    if (isGameResolved && game?.status !== "completed") {
+      // Update game status to completed
+      apiRequest("PATCH", `/api/games/${uniqueId}/status`, { 
+        status: "completed" 
+      }).catch(console.error);
+    }
+  }, [isGameResolved, game?.status, uniqueId]);
+
   // Clear bids when game is reset
   const clearStoredBids = useCallback(async () => {
     // Delete all bids for this game
-    const gameBids = await queryClient.fetchQuery<Bid[]>({ queryKey: [`/api/games/${id}/bids`] });
+    const gameBids = await queryClient.fetchQuery<Bid[]>({ queryKey: [`/api/games/${uniqueId}/bids`] });
     for (const bid of gameBids) {
       await apiRequest("DELETE", `/api/bids/${bid.id}`);
     }
-    queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/bids`] });
-  }, [id]);
+    queryClient.invalidateQueries({ queryKey: [`/api/games/${uniqueId}/bids`] });
+  }, [uniqueId]);
 
   // Add reset game mutation
   const resetGame = useMutation({
@@ -357,7 +376,7 @@ export default function GamePage() {
       await clearStoredBids();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${uniqueId}/items`] });
       toast({ 
         title: "Success", 
         description: "Game has been reset. All prices have been equalized and bids cleared." 
@@ -373,17 +392,28 @@ export default function GamePage() {
   });
 
   // Handle API errors
-  if (gameError || itemsError) {
+  if (gameError) {
     return (
       <div className="min-h-screen bg-gray-50 p-4">
         <div className="max-w-md mx-auto">
           <Card>
             <CardContent className="p-8">
               <div className="text-center text-destructive">
-                <p className="font-medium">Error loading game</p>
-                <p className="text-sm mt-2">
-                  {gameError?.message || itemsError?.message || "Please try again"}
+                <p className="font-medium">
+                  {gameError.status === 410 ? "Game Expired" : "Error Loading Game"}
                 </p>
+                <p className="text-sm mt-2">
+                  {gameError.status === 410 
+                    ? "This game has expired and is no longer accessible."
+                    : gameError?.message || "Please try again"}
+                </p>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => window.location.href = `${baseUrl}/#/`}
+                >
+                  Return Home
+                </Button>
               </div>
             </CardContent>
           </Card>

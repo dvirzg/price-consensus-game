@@ -4,12 +4,14 @@ import { z } from "zod";
 
 export const games = pgTable("games", {
   id: serial("id").primaryKey(),
+  uniqueId: text("unique_id").notNull().unique(),
   title: text("title").notNull(),
   totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastActive: timestamp("last_active").defaultNow().notNull(),
   status: text("status", { enum: ["active", "inactive", "completed"] }).default("active").notNull(),
   creatorId: integer("creator_id").references(() => participants.id),
+  expiresAt: timestamp("expires_at"),
 });
 
 export const items = pgTable("items", {
@@ -52,7 +54,9 @@ export const insertGameSchema = createInsertSchema(games).extend({
   createdAt: true,
   lastActive: true,
   status: true,
-  creatorId: true
+  creatorId: true,
+  uniqueId: true,
+  expiresAt: true
 });
 
 export const insertItemSchema = createInsertSchema(items).extend({
