@@ -89,7 +89,7 @@ export default function GamePage() {
     itemId: bid.itemId,
     participantId: bid.participantId,
     price: Number(bid.price),
-    timestamp: bid.timestamp.getTime(),
+    timestamp: typeof bid.timestamp === 'string' ? new Date(bid.timestamp).getTime() : bid.timestamp.getTime(),
     needsConfirmation: bid.needsConfirmation,
   });
 
