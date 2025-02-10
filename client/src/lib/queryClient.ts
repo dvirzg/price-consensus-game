@@ -25,20 +25,22 @@ function getErrorMessage(error: unknown): string {
 }
 
 export async function apiRequest(method: string, path: string, body?: any) {
-  const response = await fetch(`${baseUrl}${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  return retryRequest(async () => {
+    const response = await fetch(`${baseUrl}${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: "An error occurred" }));
-    throw new Error(error.message || `HTTP error! status: ${response.status}`);
-  }
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "An error occurred" }));
+      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+    }
 
-  return response;
+    return response;
+  }, 5, 1000);
 }
 
 // Add a helper function for retrying failed requests
@@ -86,14 +88,16 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
-      retry: 3,
+      retry: 5,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
       staleTime: 0,
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
+      refetchOnMount: true,
+      refetchInterval: (data) => data ? false : 1000, // Retry every second if no data
     },
     mutations: {
-      retry: 3,
+      retry: 5,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     },
   },
