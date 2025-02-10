@@ -85,13 +85,31 @@ export default function GamePage() {
   });
 
   // Convert server bid to client bid format
-  const convertBidToInterest = (bid: Bid): ItemInterest => ({
-    itemId: bid.itemId,
-    participantId: bid.participantId,
-    price: Number(bid.price),
-    timestamp: typeof bid.timestamp === 'string' ? new Date(bid.timestamp).getTime() : bid.timestamp.getTime(),
-    needsConfirmation: bid.needsConfirmation,
-  });
+  const convertBidToInterest = (bid: Bid): ItemInterest => {
+    let timestamp: number;
+    try {
+      if (typeof bid.timestamp === 'string') {
+        timestamp = new Date(bid.timestamp).getTime();
+      } else if (bid.timestamp instanceof Date) {
+        timestamp = bid.timestamp.getTime();
+      } else {
+        // Fallback to current timestamp if invalid
+        console.warn('Invalid timestamp format:', bid.timestamp);
+        timestamp = Date.now();
+      }
+    } catch (error) {
+      console.error('Error converting timestamp:', error);
+      timestamp = Date.now();
+    }
+
+    return {
+      itemId: bid.itemId,
+      participantId: bid.participantId,
+      price: Number(bid.price),
+      timestamp,
+      needsConfirmation: bid.needsConfirmation,
+    };
+  };
 
   const joinGame = useMutation({
     mutationFn: async () => {
