@@ -46,6 +46,7 @@ export default function CreateGame() {
 
   const createGame = useMutation({
     mutationFn: async (data: { title: string; totalPrice: number; creatorName: string; creatorEmail: string }) => {
+      // Create the game
       const game = await apiRequest("POST", "/api/games", {
         title: data.title,
         totalPrice: data.totalPrice,
@@ -69,10 +70,10 @@ export default function CreateGame() {
       toast({ title: "Success", description: "Game created successfully" });
       setLocation(`/game/${data.uniqueId}`);
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
-        description: "Failed to create game",
+        description: error.message || "Failed to create game",
         variant: "destructive",
       });
     },

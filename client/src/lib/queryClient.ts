@@ -38,20 +38,27 @@ export const queryClient = new QueryClient({
 });
 
 export async function apiRequest(method: string, path: string, body?: any) {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  try {
+    const response = await fetch(`${apiBaseUrl}${path}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: "An error occurred" }));
-    throw new Error(error.message || "Failed to make request");
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "An error occurred" }));
+      throw new Error(error.message || `Failed to ${method.toLowerCase()} ${path}`);
+    }
+
+    return response;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(`Failed to ${method.toLowerCase()} ${path}`);
   }
-
-  return response;
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
