@@ -329,7 +329,22 @@ export default function GamePage() {
       setTimeout(() => setShowConfetti(false), 10000); // Stop confetti after 10 seconds
       
       // Update game status to resolved
-      apiRequest("PATCH", `/api/games/${gameId}/status`, { status: "resolved" });
+      const updateStatus = async () => {
+        try {
+          await apiRequest("PATCH", `/api/games/${gameId}/status`, { status: "resolved" });
+          // Invalidate game data to refresh the UI
+          queryClient.invalidateQueries({ queryKey: [uniqueId ? `/api/games/by-id/${uniqueId}` : `/api/games/${id}`] });
+        } catch (error) {
+          console.error('Failed to update game status:', error);
+          toast({
+            title: "Error",
+            description: "Failed to update game status",
+            variant: "destructive"
+          });
+        }
+      };
+      
+      updateStatus();
       
       // Scroll to results with a slight delay to ensure DOM is updated
       setTimeout(() => {
@@ -339,7 +354,7 @@ export default function GamePage() {
         });
       }, 100);
     }
-  }, [isGameResolved, gameId]);
+  }, [isGameResolved, gameId, id, uniqueId, queryClient]);
 
   // Clear bids when game is reset
   const clearStoredBids = useCallback(async () => {
@@ -388,7 +403,7 @@ export default function GamePage() {
   // Handle API errors
   if (gameError || itemsError) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
+      <div className="min-h-screen bg-background p-4">
         <div className="max-w-md mx-auto">
           <Card>
             <CardContent className="p-8">
@@ -397,6 +412,16 @@ export default function GamePage() {
                 <p className="text-sm mt-2">
                   {gameError?.message || itemsError?.message || "Please try again"}
                 </p>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => {
+                    queryClient.invalidateQueries({ queryKey: [uniqueId ? `/api/games/by-id/${uniqueId}` : `/api/games/${id}`] });
+                    queryClient.invalidateQueries({ queryKey: [`/api/games/${gameId}/items`] });
+                  }}
+                >
+                  Retry
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -408,7 +433,7 @@ export default function GamePage() {
   // Show loading state
   if (!game || !items) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
+      <div className="min-h-screen bg-background p-4">
         <div className="max-w-md mx-auto">
           <Card>
             <CardContent className="p-8">
