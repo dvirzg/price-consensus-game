@@ -2,25 +2,18 @@ import { pgTable, text, serial, integer, timestamp, decimal, boolean } from "dri
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { nanoid } from 'nanoid';
+import type { SQL } from "drizzle-orm";
 
 export const games = pgTable("games", {
   id: serial("id").primaryKey(),
-  uniqueId: text("unique_id").notNull().default(() => nanoid(10)),
+  uniqueId: text("unique_id").notNull().default(nanoid(10)),
   title: text("title").notNull(),
   totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastActive: timestamp("last_active").defaultNow().notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   status: text("status", { enum: ["active", "resolved", "expired"] }).default("active").notNull(),
-  creatorId: integer("creator_id").references(() => participants.id),
-});
-
-export const items = pgTable("items", {
-  id: serial("id").primaryKey(),
-  gameId: integer("game_id").references(() => games.id).notNull(),
-  title: text("title").notNull(),
-  imageData: text("image_data").notNull(), // Store base64 image data
-  currentPrice: decimal("current_price", { precision: 10, scale: 2 }).notNull(),
+  creatorId: integer("creator_id"),
 });
 
 export const participants = pgTable("participants", {
@@ -28,6 +21,16 @@ export const participants = pgTable("participants", {
   gameId: integer("game_id").references(() => games.id).notNull(),
   name: text("name").notNull(),
   email: text("email"),
+});
+
+games.creatorId.references(() => participants.id);
+
+export const items = pgTable("items", {
+  id: serial("id").primaryKey(),
+  gameId: integer("game_id").references(() => games.id).notNull(),
+  title: text("title").notNull(),
+  imageData: text("image_data").notNull(), // Store base64 image data
+  currentPrice: decimal("current_price", { precision: 10, scale: 2 }).notNull(),
 });
 
 export const itemAssignments = pgTable("item_assignments", {
@@ -55,7 +58,9 @@ export const insertGameSchema = createInsertSchema(games).extend({
   createdAt: true,
   lastActive: true,
   status: true,
-  creatorId: true
+  creatorId: true,
+  expiresAt: true,
+  uniqueId: true
 });
 
 export const insertItemSchema = createInsertSchema(items).extend({

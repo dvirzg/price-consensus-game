@@ -60,9 +60,9 @@ export class MemStorage implements IStorage {
     const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000); // 48 hours from now
 
     const newGame: Game = {
-      ...game,
       id,
       uniqueId: nanoid(10),
+      title: game.title,
       totalPrice: game.totalPrice.toString(),
       createdAt: now,
       lastActive: now,
@@ -132,7 +132,8 @@ export class MemStorage implements IStorage {
 
   async cleanupExpiredGames(): Promise<void> {
     const now = new Date();
-    for (const [id, game] of this.games.entries()) {
+    const entries = Array.from(this.games.entries());
+    for (const [id, game] of entries) {
       if (game.expiresAt <= now) {
         this.games.delete(id);
       }

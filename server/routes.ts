@@ -25,6 +25,7 @@ export function registerRoutes(app: Express): Server {
         email: creatorEmail || null
       });
       
+      // Create game with expiry time set to 48 hours from now
       const created = await storage.createGame(game, creator.id);
       
       await storage.updateParticipantGameId(creator.id, created.id);
