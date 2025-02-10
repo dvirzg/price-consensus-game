@@ -68,25 +68,69 @@ export default function GamePage() {
     retry: false,
     staleTime: 0,
     enabled: !!uniqueId,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const response = await fetch(`/api/games/${uniqueId}`);
+      if (!response.ok) {
+        if (response.status === 410) {
+          throw new Error("Game has expired");
+        }
+        throw new Error("Failed to load game");
+      }
+      return response.json();
+    }
   }) as { data: Game | undefined; error: ApiError | null };
 
-  const { data: items, error: itemsError } = useQuery<Item[]>({
-    queryKey: [`/api/games/${uniqueId}/items`],
+  const { data: items = [], error: itemsError } = useQuery({
+    queryKey: [`/api/games/${uniqueId}/items`] as const,
     retry: false,
+    enabled: !!game?.id,
+    queryFn: async () => {
+      const response = await fetch(`/api/games/${uniqueId}/items`);
+      if (!response.ok) {
+        throw new Error("Failed to load items");
+      }
+      return response.json();
+    }
   });
 
-  const { data: participants } = useQuery<Participant[]>({
-    queryKey: [`/api/games/${uniqueId}/participants`],
+  const { data: participants = [] } = useQuery({
+    queryKey: [`/api/games/${uniqueId}/participants`] as const,
+    retry: false,
+    enabled: !!game?.id,
+    queryFn: async () => {
+      const response = await fetch(`/api/games/${uniqueId}/participants`);
+      if (!response.ok) {
+        throw new Error("Failed to load participants");
+      }
+      return response.json();
+    }
   });
 
-  const { data: assignments } = useQuery<ItemAssignment[]>({
-    queryKey: [`/api/games/${uniqueId}/assignments`],
+  const { data: assignments = [] } = useQuery({
+    queryKey: [`/api/games/${uniqueId}/assignments`] as const,
+    retry: false,
+    enabled: !!game?.id,
+    queryFn: async () => {
+      const response = await fetch(`/api/games/${uniqueId}/assignments`);
+      if (!response.ok) {
+        throw new Error("Failed to load assignments");
+      }
+      return response.json();
+    }
   });
 
-  const { data: bids = [] } = useQuery<Bid[]>({
-    queryKey: [`/api/games/${uniqueId}/bids`],
-    enabled: !!uniqueId,
+  const { data: bids = [] } = useQuery({
+    queryKey: [`/api/games/${uniqueId}/bids`] as const,
+    retry: false,
+    enabled: !!game?.id,
+    queryFn: async () => {
+      const response = await fetch(`/api/games/${uniqueId}/bids`);
+      if (!response.ok) {
+        throw new Error("Failed to load bids");
+      }
+      return response.json();
+    }
   });
 
   // Convert server bid to client bid format
