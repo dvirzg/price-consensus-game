@@ -151,11 +151,14 @@ export function registerRoutes(app: Express): Server {
   app.patch("/api/items/:id/price", async (req, res) => {
     try {
       const { price } = req.body;
-      if (typeof price !== "number") {
+      const numericPrice = Number(price);
+      
+      if (isNaN(numericPrice)) {
         res.status(400).json({ message: "Invalid price - must be a number" });
         return;
       }
-      await storage.updateItemPrice(Number(req.params.id), price);
+
+      await storage.updateItemPrice(Number(req.params.id), numericPrice);
       res.json({ success: true });
     } catch (err) {
       console.error("Failed to update price:", err);

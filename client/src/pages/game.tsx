@@ -155,10 +155,15 @@ export default function GamePage() {
 
   const updatePrice = useMutation({
     mutationFn: async ({ itemId, price, isMainBid = false }: { itemId: number; price: number; isMainBid?: boolean }) => {
-      await apiRequest("PATCH", `/api/items/${itemId}/price`, { price: price.toString() });
+      // Convert price to number explicitly
+      const numericPrice = Number(price);
+      if (isNaN(numericPrice)) {
+        throw new Error("Invalid price value");
+      }
+
+      await apiRequest("PATCH", `/api/items/${itemId}/price`, { price: numericPrice });
       
       if (currentParticipant && isMainBid) {
-        // Create or update bid for the main item
         const existingBid = bids.find(bid => 
           bid.itemId === itemId && 
           bid.participantId === currentParticipant.id
@@ -167,22 +172,21 @@ export default function GamePage() {
         if (existingBid) {
           await updateBid.mutateAsync({
             bidId: existingBid.id,
-            price,
+            price: numericPrice,
             needsConfirmation: false
           });
         } else {
           await createBid.mutateAsync({
             itemId,
-            price,
+            price: numericPrice,
             needsConfirmation: false
           });
         }
 
-        // Update other participants' bids that need confirmation
         const affectedBids = bids.filter(bid => 
           bid.itemId === itemId && 
           bid.participantId !== currentParticipant.id &&
-          Number(bid.price) < price
+          Number(bid.price) < numericPrice
         );
 
         for (const bid of affectedBids) {
