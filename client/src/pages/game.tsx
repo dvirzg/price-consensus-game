@@ -22,9 +22,13 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import ReactConfetti from 'react-confetti';
 
-// Extend the Game type to include creatorId
+// Extend the Game type to include all necessary fields
 interface Game extends GameBase {
   creatorId: number;
+  title: string;
+  totalPrice: string;
+  lastActive: Date;
+  status: "active" | "inactive" | "completed";
 }
 
 interface ItemInterest {
@@ -33,6 +37,10 @@ interface ItemInterest {
   price: number;
   timestamp: number;
   needsConfirmation: boolean;
+}
+
+interface ApiError extends Error {
+  status?: number;
 }
 
 export default function GamePage() {
@@ -55,19 +63,13 @@ export default function GamePage() {
   const baseUrl = import.meta.env.DEV ? '' : '/price-consensus-game';
   const gameLink = `${window.location.protocol}//${window.location.host}${baseUrl}/#/game/${uniqueId}`;
 
-  const { data: game, error: gameError } = useQuery<Game>({
-    queryKey: [`/api/games/${uniqueId}`],
+  const { data: game, error: gameError } = useQuery({
+    queryKey: [`/api/games/${uniqueId}`] as const,
     retry: false,
-    onError: (error: any) => {
-      if (error.status === 410) {
-        toast({
-          title: "Game Expired",
-          description: "This game has expired and is no longer accessible.",
-          variant: "destructive"
-        });
-      }
-    }
-  });
+    staleTime: 0,
+    enabled: !!uniqueId,
+    refetchOnWindowFocus: false
+  }) as { data: Game | undefined; error: ApiError | null };
 
   const { data: items, error: itemsError } = useQuery<Item[]>({
     queryKey: [`/api/games/${uniqueId}/items`],
@@ -231,7 +233,7 @@ export default function GamePage() {
         });
       } else {
         await createBid.mutateAsync({
-          itemId,
+        itemId,
           price: Number(item.currentPrice),
           needsConfirmation: false
         });
@@ -266,7 +268,7 @@ export default function GamePage() {
   };
 
   // Get all interests for an item
-  const getItemBids = (itemId: number): { userId: number; userName: string; price: number; needsConfirmation: boolean }[] => {
+  const getItemBids = (itemId: number) => {
     if (!participants) return [];
 
     return bids
@@ -276,7 +278,8 @@ export default function GamePage() {
         userName: getParticipantName(bid.participantId),
         price: Number(bid.price),
         needsConfirmation: bid.needsConfirmation
-      }));
+      }))
+      .sort((a, b) => b.price - a.price);
   };
 
   // Calculate if the game is resolved
@@ -298,7 +301,7 @@ export default function GamePage() {
       return bids.filter(bid => 
         bid.itemId === item.id && 
         !bid.needsConfirmation &&
-        itemPrice <= Number(bid.price)  // Interest is valid if current price is less than or equal to confirmed price
+        Number(bid.price) >= itemPrice  // Interest is valid if current price is less than or equal to confirmed price
       );
     });
 
@@ -346,6 +349,17 @@ export default function GamePage() {
       }).catch(console.error);
     }
   }, [isGameResolved, game?.status, uniqueId]);
+
+  // Check for expired game after data is loaded
+  useEffect(() => {
+    if (game?.status === "inactive") {
+      toast({
+        title: "Game Expired",
+        description: "This game has expired and is no longer accessible.",
+        variant: "destructive"
+      });
+    }
+  }, [game?.status, toast]);
 
   // Clear bids when game is reset
   const clearStoredBids = useCallback(async () => {
@@ -671,9 +685,9 @@ export default function GamePage() {
                               );
                               const highestBid = bids
                                 .filter(bid => bid.itemId === item.id && !bid.needsConfirmation)
-                                .sort((a, b) => b.price - a.price)[0];
+                                .sort((a, b) => Number(b.price) - Number(a.price))[0];
                               
-                              return participantBid && highestBid && highestBid.price > participantBid.price;
+                              return participantBid && highestBid && Number(highestBid.price) > Number(participantBid.price);
                             });
 
                             // Get items that need confirmation
@@ -734,7 +748,7 @@ export default function GamePage() {
                             bids.some(bid => 
                               bid.itemId === item.id && 
                               !bid.needsConfirmation &&
-                              Math.abs(bid.price - Number(item.currentPrice)) < 0.01
+                              Math.abs(Number(bid.price) - Number(item.currentPrice)) < 0.01
                             )
                           ) && (
                             <div className="text-sm text-muted-foreground">
@@ -924,7 +938,7 @@ export default function GamePage() {
                   </div>
                 );
               })}
-            </div>
+                        </div>
 
             {Object.keys(previewPrices).length > 0 && (
               <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2">
@@ -971,7 +985,7 @@ export default function GamePage() {
                     </div>
                   </CardContent>
                 </Card>
-              </div>
+                  </div>
             )}
           </>
         )}
