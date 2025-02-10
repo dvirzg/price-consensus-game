@@ -149,7 +149,7 @@ export default function GamePage() {
 
   const updatePrice = useMutation({
     mutationFn: async ({ itemId, price, isMainBid = false }: { itemId: number; price: number; isMainBid?: boolean }) => {
-      await apiRequest("PATCH", `/api/items/${itemId}/price`, { price });
+      await apiRequest("PATCH", `/api/items/${itemId}/price`, { price: price.toString() });
       
       if (currentParticipant && isMainBid) {
         // Create or update bid for the main item
