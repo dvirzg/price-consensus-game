@@ -112,6 +112,7 @@ export default function GamePage() {
       const response = await apiRequest("POST", `/api/games/${id}/bids`, {
         ...newBid,
         participantId: currentParticipant.id,
+        price: newBid.price.toString(),
       });
       return response.json();
     },
@@ -129,7 +130,10 @@ export default function GamePage() {
 
   const updateBid = useMutation({
     mutationFn: async ({ bidId, price, needsConfirmation }: { bidId: number; price: number; needsConfirmation: boolean }) => {
-      await apiRequest("PATCH", `/api/bids/${bidId}`, { price, needsConfirmation });
+      await apiRequest("PATCH", `/api/bids/${bidId}`, { 
+        price: price.toString(),
+        needsConfirmation 
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/bids`] });
