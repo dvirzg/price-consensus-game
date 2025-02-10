@@ -114,10 +114,15 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/games/:id/items", async (req, res) => {
+  app.post("/api/games/:uniqueId/items", async (req, res) => {
     try {
+      const game = await storage.getGameByUniqueId(req.params.uniqueId);
+      if (!game) {
+        res.status(404).json({ message: "Game not found" });
+        return;
+      }
       const item = insertItemSchema.parse(req.body);
-      const created = await storage.createItem(Number(req.params.id), item);
+      const created = await storage.createItem(game.id, item);
       res.json(created);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -130,15 +135,14 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/games/:id/items", async (req, res) => {
+  app.get("/api/games/:uniqueId/items", async (req, res) => {
     try {
-      const gameId = Number(req.params.id);
-      if (isNaN(gameId)) {
-        res.status(400).json({ message: "Invalid game ID" });
+      const game = await storage.getGameByUniqueId(req.params.uniqueId);
+      if (!game) {
+        res.status(404).json({ message: "Game not found" });
         return;
       }
-
-      const items = await storage.getGameItems(gameId);
+      const items = await storage.getGameItems(game.id);
       res.json(items);
     } catch (err) {
       console.error("Failed to get items:", err);
@@ -161,10 +165,15 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/games/:id/participants", async (req, res) => {
+  app.post("/api/games/:uniqueId/participants", async (req, res) => {
     try {
+      const game = await storage.getGameByUniqueId(req.params.uniqueId);
+      if (!game) {
+        res.status(404).json({ message: "Game not found" });
+        return;
+      }
       const participant = insertParticipantSchema.parse(req.body);
-      const created = await storage.createParticipant(Number(req.params.id), participant);
+      const created = await storage.createParticipant(game.id, participant);
       res.json(created);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -177,15 +186,14 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/games/:id/participants", async (req, res) => {
+  app.get("/api/games/:uniqueId/participants", async (req, res) => {
     try {
-      const gameId = Number(req.params.id);
-      if (isNaN(gameId)) {
-        res.status(400).json({ message: "Invalid game ID" });
+      const game = await storage.getGameByUniqueId(req.params.uniqueId);
+      if (!game) {
+        res.status(404).json({ message: "Game not found" });
         return;
       }
-
-      const participants = await storage.getGameParticipants(gameId);
+      const participants = await storage.getGameParticipants(game.id);
       res.json(participants);
     } catch (err) {
       console.error("Failed to get participants:", err);
@@ -193,9 +201,17 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/games/:id/assignments", async (req, res) => {
+  app.post("/api/games/:uniqueId/assignments", async (req, res) => {
     try {
-      const assignment = insertItemAssignmentSchema.parse(req.body);
+      const game = await storage.getGameByUniqueId(req.params.uniqueId);
+      if (!game) {
+        res.status(404).json({ message: "Game not found" });
+        return;
+      }
+      const assignment = insertItemAssignmentSchema.parse({
+        ...req.body,
+        gameId: game.id
+      });
       const created = await storage.createItemAssignment(assignment);
       res.json(created);
     } catch (err) {
@@ -209,15 +225,14 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/games/:id/assignments", async (req, res) => {
+  app.get("/api/games/:uniqueId/assignments", async (req, res) => {
     try {
-      const gameId = Number(req.params.id);
-      if (isNaN(gameId)) {
-        res.status(400).json({ message: "Invalid game ID" });
+      const game = await storage.getGameByUniqueId(req.params.uniqueId);
+      if (!game) {
+        res.status(404).json({ message: "Game not found" });
         return;
       }
-
-      const assignments = await storage.getItemAssignments(gameId);
+      const assignments = await storage.getItemAssignments(game.id);
       res.json(assignments);
     } catch (err) {
       console.error("Failed to get assignments:", err);
@@ -242,11 +257,16 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Add bid endpoints
-  app.post("/api/games/:id/bids", async (req, res) => {
+  app.post("/api/games/:uniqueId/bids", async (req, res) => {
     try {
+      const game = await storage.getGameByUniqueId(req.params.uniqueId);
+      if (!game) {
+        res.status(404).json({ message: "Game not found" });
+        return;
+      }
       const bid = insertBidSchema.parse({
         ...req.body,
-        gameId: Number(req.params.id),
+        gameId: game.id,
       });
       const created = await storage.createBid(bid);
       res.json(created);
@@ -261,15 +281,14 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/games/:id/bids", async (req, res) => {
+  app.get("/api/games/:uniqueId/bids", async (req, res) => {
     try {
-      const gameId = Number(req.params.id);
-      if (isNaN(gameId)) {
-        res.status(400).json({ message: "Invalid game ID" });
+      const game = await storage.getGameByUniqueId(req.params.uniqueId);
+      if (!game) {
+        res.status(404).json({ message: "Game not found" });
         return;
       }
-
-      const bids = await storage.getGameBids(gameId);
+      const bids = await storage.getGameBids(game.id);
       res.json(bids);
     } catch (err) {
       console.error("Failed to get bids:", err);
