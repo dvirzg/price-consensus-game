@@ -3,6 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { nanoid } from 'nanoid';
 import type { SQL } from "drizzle-orm";
+import { relations } from 'drizzle-orm';
 
 export const games = pgTable("games", {
   id: serial("id").primaryKey(),
@@ -18,12 +19,24 @@ export const games = pgTable("games", {
 
 export const participants = pgTable("participants", {
   id: serial("id").primaryKey(),
-  gameId: integer("game_id").references(() => games.id).notNull(),
+  gameId: integer("game_id").notNull(),
   name: text("name").notNull(),
   email: text("email"),
 });
 
-games.creatorId.references(() => participants.id);
+export const gamesRelations = relations(games, ({ one }) => ({
+  creator: one(participants, {
+    fields: [games.creatorId],
+    references: [participants.id],
+  }),
+}));
+
+export const participantsRelations = relations(participants, ({ one }) => ({
+  game: one(games, {
+    fields: [participants.gameId],
+    references: [games.id],
+  }),
+}));
 
 export const items = pgTable("items", {
   id: serial("id").primaryKey(),
