@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import cors from "cors";
+import path from "path";
 
 const app = express();
 
@@ -60,6 +61,19 @@ app.use((req, res, next) => {
   next();
 });
 
+// In production, serve static files from the client build directory
+if (process.env.NODE_ENV === 'production') {
+  const clientBuildPath = path.join(__dirname, '../../client/dist');
+  app.use(express.static(clientBuildPath));
+  
+  // Serve index.html for any unknown paths (for client-side routing)
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(clientBuildPath, 'index.html'));
+    }
+  });
+}
+
 (async () => {
   const server = registerRoutes(app);
 
@@ -80,5 +94,22 @@ app.use((req, res, next) => {
   const PORT = parseInt(process.env.PORT || "5000", 10);
   server.listen(PORT, "0.0.0.0", () => {
     log(`serving on port ${PORT}`);
+  });
+
+  // Handle shutdown gracefully
+  process.on('SIGTERM', () => {
+    log('SIGTERM received. Shutting down gracefully...');
+    server.close(() => {
+      log('Server closed. Process will exit.');
+      process.exit(0);
+    });
+  });
+
+  process.on('SIGINT', () => {
+    log('SIGINT received. Shutting down gracefully...');
+    server.close(() => {
+      log('Server closed. Process will exit.');
+      process.exit(0);
+    });
   });
 })();
