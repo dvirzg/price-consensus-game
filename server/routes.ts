@@ -4,39 +4,31 @@ import { storage } from "./storage";
 import { insertGameSchema, insertItemSchema, insertParticipantSchema, insertItemAssignmentSchema, insertBidSchema } from "@shared/schema";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
-import { nanoid } from 'nanoid';
-
-// Helper function to calculate expiry time
-function calculateExpiryTime(status: "active" | "inactive" | "completed", lastActive: Date): Date {
-  const expiryHours = status === "completed" ? 12 : 48;
-  return new Date(lastActive.getTime() + expiryHours * 60 * 60 * 1000);
-}
 
 export function registerRoutes(app: Express): Server {
+  // Add cleanup job
+  setInterval(async () => {
+    try {
+      await storage.cleanupExpiredGames();
+    } catch (err) {
+      console.error("Failed to cleanup expired games:", err);
+    }
+  }, 60 * 60 * 1000); // Run cleanup every hour
+
   app.post("/api/games", async (req, res) => {
     try {
       const { title, totalPrice, creatorName, creatorEmail } = req.body;
       const game = insertGameSchema.parse({ title, totalPrice });
       
-      // Create the creator participant first with the provided name
       const creator = await storage.createParticipant(0, {
         name: creatorName || "Unknown Player",
         email: creatorEmail || null
       });
       
-      // Create the game with the creator and unique ID
-      const uniqueId = nanoid(10); // Generate a unique 10-character ID
-      const created = await storage.createGame({
-        ...game,
-        uniqueId,
-        creatorId: creator.id,
-        expiresAt: calculateExpiryTime("active", new Date())
-      });
+      const created = await storage.createGame(game, creator.id);
       
-      // Update the participant's gameId now that we have the game
       await storage.updateParticipantGameId(creator.id, created.id);
       
-      // Return both the game and the creator information
       res.json({
         ...created,
         creatorId: creator.id,
@@ -57,7 +49,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/games/:uniqueId", async (req, res) => {
+  // Add route to get game by unique ID
+  app.get("/api/games/by-id/:uniqueId", async (req, res) => {
     try {
       const game = await storage.getGameByUniqueId(req.params.uniqueId);
       if (!game) {
@@ -65,22 +58,8 @@ export function registerRoutes(app: Express): Server {
         return;
       }
 
-      // Check if game has expired
-      const now = new Date();
-      if (game.expiresAt && now > game.expiresAt) {
-        res.status(410).json({ message: "Game has expired" });
-        return;
-      }
-
-      // Update last active time and expiry for active games
-      if (game.status === "active") {
-        const lastActive = new Date();
-        const expiresAt = calculateExpiryTime(game.status, lastActive);
-        await storage.updateGameActivity(game.id, lastActive, expiresAt);
-        game.lastActive = lastActive;
-        game.expiresAt = expiresAt;
-      }
-
+      // Update last active timestamp
+      await storage.updateGameLastActive(game.id);
       res.json(game);
     } catch (err) {
       console.error("Failed to get game:", err);
@@ -88,25 +67,47 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Update game status endpoint
-  app.patch("/api/games/:uniqueId/status", async (req, res) => {
+  // Update existing game route to also update last active
+  app.get("/api/games/:id", async (req, res) => {
     try {
-      const { status } = req.body;
-      if (!status || !["active", "inactive", "completed"].includes(status)) {
-        res.status(400).json({ message: "Invalid status" });
+      const gameId = Number(req.params.id);
+      if (isNaN(gameId)) {
+        res.status(400).json({ message: "Invalid game ID" });
         return;
       }
 
-      const game = await storage.getGameByUniqueId(req.params.uniqueId);
+      const game = await storage.getGame(gameId);
       if (!game) {
         res.status(404).json({ message: "Game not found" });
         return;
       }
 
-      const lastActive = new Date();
-      const expiresAt = calculateExpiryTime(status as "active" | "inactive" | "completed", lastActive);
-      await storage.updateGameStatus(game.id, status as "active" | "inactive" | "completed", lastActive, expiresAt);
+      // Update last active timestamp
+      await storage.updateGameLastActive(gameId);
+      res.json(game);
+    } catch (err) {
+      console.error("Failed to get game:", err);
+      res.status(500).json({ message: "Failed to get game" });
+    }
+  });
 
+  // Add route to update game status
+  app.patch("/api/games/:id/status", async (req, res) => {
+    try {
+      const gameId = Number(req.params.id);
+      const { status } = req.body;
+      
+      if (isNaN(gameId)) {
+        res.status(400).json({ message: "Invalid game ID" });
+        return;
+      }
+
+      if (!["active", "resolved", "expired"].includes(status)) {
+        res.status(400).json({ message: "Invalid status" });
+        return;
+      }
+
+      await storage.updateGameStatus(gameId, status);
       res.json({ success: true });
     } catch (err) {
       console.error("Failed to update game status:", err);
@@ -114,15 +115,10 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/games/:uniqueId/items", async (req, res) => {
+  app.post("/api/games/:id/items", async (req, res) => {
     try {
-      const game = await storage.getGameByUniqueId(req.params.uniqueId);
-      if (!game) {
-        res.status(404).json({ message: "Game not found" });
-        return;
-      }
       const item = insertItemSchema.parse(req.body);
-      const created = await storage.createItem(game.id, item);
+      const created = await storage.createItem(Number(req.params.id), item);
       res.json(created);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -135,14 +131,15 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/games/:uniqueId/items", async (req, res) => {
+  app.get("/api/games/:id/items", async (req, res) => {
     try {
-      const game = await storage.getGameByUniqueId(req.params.uniqueId);
-      if (!game) {
-        res.status(404).json({ message: "Game not found" });
+      const gameId = Number(req.params.id);
+      if (isNaN(gameId)) {
+        res.status(400).json({ message: "Invalid game ID" });
         return;
       }
-      const items = await storage.getGameItems(game.id);
+
+      const items = await storage.getGameItems(gameId);
       res.json(items);
     } catch (err) {
       console.error("Failed to get items:", err);
@@ -165,15 +162,10 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/games/:uniqueId/participants", async (req, res) => {
+  app.post("/api/games/:id/participants", async (req, res) => {
     try {
-      const game = await storage.getGameByUniqueId(req.params.uniqueId);
-      if (!game) {
-        res.status(404).json({ message: "Game not found" });
-        return;
-      }
       const participant = insertParticipantSchema.parse(req.body);
-      const created = await storage.createParticipant(game.id, participant);
+      const created = await storage.createParticipant(Number(req.params.id), participant);
       res.json(created);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -186,14 +178,15 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/games/:uniqueId/participants", async (req, res) => {
+  app.get("/api/games/:id/participants", async (req, res) => {
     try {
-      const game = await storage.getGameByUniqueId(req.params.uniqueId);
-      if (!game) {
-        res.status(404).json({ message: "Game not found" });
+      const gameId = Number(req.params.id);
+      if (isNaN(gameId)) {
+        res.status(400).json({ message: "Invalid game ID" });
         return;
       }
-      const participants = await storage.getGameParticipants(game.id);
+
+      const participants = await storage.getGameParticipants(gameId);
       res.json(participants);
     } catch (err) {
       console.error("Failed to get participants:", err);
@@ -201,17 +194,9 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/games/:uniqueId/assignments", async (req, res) => {
+  app.post("/api/games/:id/assignments", async (req, res) => {
     try {
-      const game = await storage.getGameByUniqueId(req.params.uniqueId);
-      if (!game) {
-        res.status(404).json({ message: "Game not found" });
-        return;
-      }
-      const assignment = insertItemAssignmentSchema.parse({
-        ...req.body,
-        gameId: game.id
-      });
+      const assignment = insertItemAssignmentSchema.parse(req.body);
       const created = await storage.createItemAssignment(assignment);
       res.json(created);
     } catch (err) {
@@ -225,14 +210,15 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/games/:uniqueId/assignments", async (req, res) => {
+  app.get("/api/games/:id/assignments", async (req, res) => {
     try {
-      const game = await storage.getGameByUniqueId(req.params.uniqueId);
-      if (!game) {
-        res.status(404).json({ message: "Game not found" });
+      const gameId = Number(req.params.id);
+      if (isNaN(gameId)) {
+        res.status(400).json({ message: "Invalid game ID" });
         return;
       }
-      const assignments = await storage.getItemAssignments(game.id);
+
+      const assignments = await storage.getItemAssignments(gameId);
       res.json(assignments);
     } catch (err) {
       console.error("Failed to get assignments:", err);
@@ -257,16 +243,11 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Add bid endpoints
-  app.post("/api/games/:uniqueId/bids", async (req, res) => {
+  app.post("/api/games/:id/bids", async (req, res) => {
     try {
-      const game = await storage.getGameByUniqueId(req.params.uniqueId);
-      if (!game) {
-        res.status(404).json({ message: "Game not found" });
-        return;
-      }
       const bid = insertBidSchema.parse({
         ...req.body,
-        gameId: game.id,
+        gameId: Number(req.params.id),
       });
       const created = await storage.createBid(bid);
       res.json(created);
@@ -281,14 +262,15 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/games/:uniqueId/bids", async (req, res) => {
+  app.get("/api/games/:id/bids", async (req, res) => {
     try {
-      const game = await storage.getGameByUniqueId(req.params.uniqueId);
-      if (!game) {
-        res.status(404).json({ message: "Game not found" });
+      const gameId = Number(req.params.id);
+      if (isNaN(gameId)) {
+        res.status(400).json({ message: "Invalid game ID" });
         return;
       }
-      const bids = await storage.getGameBids(game.id);
+
+      const bids = await storage.getGameBids(gameId);
       res.json(bids);
     } catch (err) {
       console.error("Failed to get bids:", err);

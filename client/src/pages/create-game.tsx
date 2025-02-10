@@ -56,7 +56,7 @@ export default function CreateGame() {
 
       // Create items
       for (const item of items) {
-        await apiRequest("POST", `/api/games/${gameData.uniqueId}/items`, {
+        await apiRequest("POST", `/api/games/${gameData.id}/items`, {
           title: item.title,
           imageData: item.imageData,
           currentPrice: data.totalPrice / items.length,
@@ -67,7 +67,7 @@ export default function CreateGame() {
     },
     onSuccess: (data) => {
       toast({ title: "Success", description: "Game created successfully" });
-      setLocation(`/game/${data.uniqueId}`);
+      setLocation(`/game/${data.id}`);
     },
     onError: () => {
       toast({

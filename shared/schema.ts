@@ -1,17 +1,18 @@
 import { pgTable, text, serial, integer, timestamp, decimal, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { nanoid } from 'nanoid';
 
 export const games = pgTable("games", {
   id: serial("id").primaryKey(),
-  uniqueId: text("unique_id").notNull().unique(),
+  uniqueId: text("unique_id").notNull().default(() => nanoid(10)),
   title: text("title").notNull(),
   totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastActive: timestamp("last_active").defaultNow().notNull(),
-  status: text("status", { enum: ["active", "inactive", "completed"] }).default("active").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  status: text("status", { enum: ["active", "resolved", "expired"] }).default("active").notNull(),
   creatorId: integer("creator_id").references(() => participants.id),
-  expiresAt: timestamp("expires_at"),
 });
 
 export const items = pgTable("items", {
@@ -54,9 +55,7 @@ export const insertGameSchema = createInsertSchema(games).extend({
   createdAt: true,
   lastActive: true,
   status: true,
-  creatorId: true,
-  uniqueId: true,
-  expiresAt: true
+  creatorId: true
 });
 
 export const insertItemSchema = createInsertSchema(items).extend({

@@ -45,6 +45,7 @@ function AppRouter() {
       <Route path="/" component={Home} />
       <Route path="/create" component={CreateGame} />
       <Route path="/game/:id" component={Game} />
+      <Route path="/g/:uniqueId" component={Game} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -1,7 +1,6 @@
-import { QueryClient, QueryFunction, QueryKey, UseQueryOptions } from "@tanstack/react-query";
+import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-// Get base URL for GitHub Pages or development
-const baseUrl = import.meta.env.DEV ? 'http://localhost:5000' : 'https://price-consensus-game-production.up.railway.app';
+const API_URL = import.meta.env.VITE_API_URL;
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -24,52 +23,28 @@ function getErrorMessage(error: unknown): string {
   return 'An unknown error occurred';
 }
 
-// Helper function to delay execution
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Helper function to retry failed requests
-const retryRequest = async <T>(
-  fn: () => Promise<T>,
-  retries = 5,
-  baseDelay = 1000,
-): Promise<T> => {
-  try {
-    return await fn();
-  } catch (error) {
-    if (retries <= 0) throw error;
-    
-    // Exponential backoff with jitter
-    const jitter = Math.random() * 200;
-    await delay(baseDelay + jitter);
-    
-    console.log(`Retrying request... ${retries} attempts remaining`);
-    return retryRequest(fn, retries - 1, baseDelay * 2);
-  }
-};
-
 export async function apiRequest(
   method: string,
-  path: string,
-  body?: unknown
+  url: string,
+  data?: unknown | undefined,
 ): Promise<Response> {
-  const url = `${baseUrl}${path}`;
+  const fullUrl = `${API_URL}${url}`;
+  console.log(`Making ${method} request to ${fullUrl}`, data);
   
-  return retryRequest(async () => {
-    const response = await fetch(url, {
+  try {
+    const res = await fetch(fullUrl, {
       method,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: body ? JSON.stringify(body) : undefined,
+      headers: data ? { "Content-Type": "application/json" } : {},
+      body: data ? JSON.stringify(data) : undefined,
+      credentials: "include",
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-    }
-
-    return response;
-  });
+    await throwIfResNotOk(res);
+    return res;
+  } catch (error) {
+    console.error('API Request failed:', error);
+    throw new Error(getErrorMessage(error));
+  }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -78,7 +53,7 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const fullUrl = `${baseUrl}${queryKey[0]}`;
+    const fullUrl = `${API_URL}${queryKey[0]}`;
     console.log(`Making query request to ${fullUrl}`);
     
     try {
@@ -102,41 +77,13 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
-      retry: (failureCount: number, error: Error) => {
-        // Don't retry on 404s after the first attempt
-        if (error.message.includes('404') && failureCount > 0) {
-          return false;
-        }
-        // Retry other errors up to 5 times
-        return failureCount < 5;
-      },
-      retryDelay: (attemptIndex) => {
-        // Exponential backoff with jitter
-        const baseDelay = Math.min(1000 * 2 ** attemptIndex, 30000);
-        const jitter = Math.random() * 200;
-        return baseDelay + jitter;
-      },
-      staleTime: 0,
-      refetchOnWindowFocus: true,
-      refetchOnReconnect: true,
-      refetchOnMount: true,
-      refetchInterval: (data: unknown) => {
-        // If we have no data, retry every second
-        if (!data) return 1000;
-        // If we have data but it's incomplete, retry every 5 seconds
-        if (typeof data === 'object' && (!data || Object.keys(data).length === 0)) return 5000;
-        // Otherwise, don't refetch automatically
-        return false;
-      }
+      refetchInterval: false,
+      refetchOnWindowFocus: false,
+      staleTime: Infinity,
+      retry: false,
     },
     mutations: {
-      retry: 5,
-      retryDelay: (attemptIndex) => {
-        // Exponential backoff with jitter
-        const baseDelay = Math.min(1000 * 2 ** attemptIndex, 30000);
-        const jitter = Math.random() * 200;
-        return baseDelay + jitter;
-      }
+      retry: false,
     },
   },
 });

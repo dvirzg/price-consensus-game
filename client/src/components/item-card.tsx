@@ -70,7 +70,7 @@ export default function ItemCard({
     
     if (newPrice >= 0) {
       setLocalPreviewPrice(newPrice);
-      onPriceChange(Number(newPrice));
+      onPriceChange(newPrice);
     }
   };
 
@@ -97,7 +97,7 @@ export default function ItemCard({
       
       if (newPrice >= 0) {
         setLocalPreviewPrice(newPrice);
-        onPriceChange(Number(newPrice));
+        onPriceChange(newPrice);
       }
     }
   };

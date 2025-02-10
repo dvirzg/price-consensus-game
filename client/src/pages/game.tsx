@@ -22,13 +22,9 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import ReactConfetti from 'react-confetti';
 
-// Extend the Game type to include all necessary fields
+// Extend the Game type to include creatorId
 interface Game extends GameBase {
   creatorId: number;
-  title: string;
-  totalPrice: string;
-  lastActive: Date;
-  status: "active" | "inactive" | "completed";
 }
 
 interface ItemInterest {
@@ -39,12 +35,8 @@ interface ItemInterest {
   needsConfirmation: boolean;
 }
 
-interface ApiError extends Error {
-  status?: number;
-}
-
 export default function GamePage() {
-  const { id: uniqueId } = useParams();
+  const { id } = useParams();
   const { toast } = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -61,76 +53,30 @@ export default function GamePage() {
 
   // Get base URL for GitHub Pages or development
   const baseUrl = import.meta.env.DEV ? '' : '/price-consensus-game';
-  const gameLink = `${window.location.protocol}//${window.location.host}${baseUrl}/#/game/${uniqueId}`;
+  const gameLink = `${window.location.protocol}//${window.location.host}${baseUrl}/#/game/${game?.uniqueId || id}`;
 
-  const { data: game, error: gameError, isLoading: isGameLoading } = useQuery({
-    queryKey: [`/api/games/${uniqueId}`] as const,
-    retry: 5,
-    staleTime: 0,
-    enabled: !!uniqueId,
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    refetchInterval: 5000, // Refetch every 5 seconds to handle server restarts
-    onError: (error) => {
-      console.error("Game query error:", error);
-    }
-  }) as { data: Game | undefined; error: ApiError | null; isLoading: boolean };
-
-  const { data: items, error: itemsError, isLoading: isItemsLoading } = useQuery<Item[]>({
-    queryKey: [`/api/games/${uniqueId}/items`],
-    retry: 5,
-    enabled: !!uniqueId && !gameError,
-    refetchInterval: 5000,
-    onError: (error) => {
-      console.error("Items query error:", error);
-    }
+  const { data: game, error: gameError } = useQuery<Game>({
+    queryKey: [`/api/games/${id}`],
+    retry: false,
   });
 
-  const { data: participants, isLoading: isParticipantsLoading } = useQuery<Participant[]>({
-    queryKey: [`/api/games/${uniqueId}/participants`],
-    retry: 5,
-    enabled: !!uniqueId && !gameError,
-    refetchInterval: 5000,
-    onError: (error) => {
-      console.error("Participants query error:", error);
-    }
+  const { data: items, error: itemsError } = useQuery<Item[]>({
+    queryKey: [`/api/games/${id}/items`],
+    retry: false,
   });
 
-  const { data: assignments, isLoading: isAssignmentsLoading } = useQuery<ItemAssignment[]>({
-    queryKey: [`/api/games/${uniqueId}/assignments`],
-    retry: 5,
-    enabled: !!uniqueId && !gameError,
-    refetchInterval: 5000,
-    onError: (error) => {
-      console.error("Assignments query error:", error);
-    }
+  const { data: participants } = useQuery<Participant[]>({
+    queryKey: [`/api/games/${id}/participants`],
   });
 
-  const { data: bids = [], isLoading: isBidsLoading } = useQuery<Bid[]>({
-    queryKey: [`/api/games/${uniqueId}/bids`],
-    retry: 5,
-    enabled: !!uniqueId && !gameError,
-    refetchInterval: 5000,
-    onError: (error) => {
-      console.error("Bids query error:", error);
-    }
+  const { data: assignments } = useQuery<ItemAssignment[]>({
+    queryKey: [`/api/games/${id}/assignments`],
   });
 
-  // Add a useEffect to handle loading state changes
-  useEffect(() => {
-    console.log("Loading state changed:", {
-      isGameLoading,
-      isItemsLoading,
-      isParticipantsLoading,
-      isAssignmentsLoading,
-      isBidsLoading,
-      game,
-      items,
-      participants,
-      assignments,
-      bids
-    });
-  }, [isGameLoading, isItemsLoading, isParticipantsLoading, isAssignmentsLoading, isBidsLoading, game, items, participants, assignments, bids]);
+  const { data: bids = [] } = useQuery<Bid[]>({
+    queryKey: [`/api/games/${id}/bids`],
+    enabled: !!id,
+  });
 
   // Convert server bid to client bid format
   const convertBidToInterest = (bid: Bid): ItemInterest => ({
@@ -143,14 +89,14 @@ export default function GamePage() {
 
   const joinGame = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", `/api/games/${uniqueId}/participants`, {
+      const response = await apiRequest("POST", `/api/games/${id}/participants`, {
         name,
         email,
       });
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${uniqueId}/participants`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/participants`] });
       setCurrentParticipant(data);
       setIsAddPlayerOpen(false);
       setName("");
@@ -161,9 +107,9 @@ export default function GamePage() {
 
   const createBid = useMutation({
     mutationFn: async (newBid: { itemId: number; price: number; needsConfirmation: boolean }) => {
-      if (!currentParticipant || !uniqueId) return;
+      if (!currentParticipant || !id) return;
       
-      const response = await apiRequest("POST", `/api/games/${uniqueId}/bids`, {
+      const response = await apiRequest("POST", `/api/games/${id}/bids`, {
         ...newBid,
         participantId: currentParticipant.id,
         price: newBid.price.toString(),
@@ -171,7 +117,7 @@ export default function GamePage() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${uniqueId}/bids`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/bids`] });
     },
     onError: (error) => {
       toast({
@@ -190,7 +136,7 @@ export default function GamePage() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${uniqueId}/bids`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/bids`] });
     },
     onError: (error) => {
       toast({
@@ -215,13 +161,13 @@ export default function GamePage() {
         if (existingBid) {
           await updateBid.mutateAsync({
             bidId: existingBid.id,
-            price: Number(price),
+            price,
             needsConfirmation: false
           });
         } else {
           await createBid.mutateAsync({
             itemId,
-            price: Number(price),
+            price,
             needsConfirmation: false
           });
         }
@@ -243,7 +189,7 @@ export default function GamePage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${uniqueId}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/items`] });
       setEditingItemId(null);
       setPreviewPrices({});
     },
@@ -311,7 +257,7 @@ export default function GamePage() {
   };
 
   // Get all interests for an item
-  const getItemBids = (itemId: number) => {
+  const getItemBids = (itemId: number): { userId: number; userName: string; price: number; needsConfirmation: boolean }[] => {
     if (!participants) return [];
 
     return bids
@@ -321,8 +267,7 @@ export default function GamePage() {
         userName: getParticipantName(bid.participantId),
         price: Number(bid.price),
         needsConfirmation: bid.needsConfirmation
-      }))
-      .sort((a, b) => b.price - a.price);
+      }));
   };
 
   // Calculate if the game is resolved
@@ -344,7 +289,7 @@ export default function GamePage() {
       return bids.filter(bid => 
         bid.itemId === item.id && 
         !bid.needsConfirmation &&
-        Number(bid.price) >= itemPrice  // Interest is valid if current price is less than or equal to confirmed price
+        itemPrice <= Number(bid.price)  // Interest is valid if current price is less than or equal to confirmed price
       );
     });
 
@@ -373,6 +318,9 @@ export default function GamePage() {
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 10000); // Stop confetti after 10 seconds
       
+      // Update game status to resolved
+      apiRequest("PATCH", `/api/games/${id}/status`, { status: "resolved" });
+      
       // Scroll to results with a slight delay to ensure DOM is updated
       setTimeout(() => {
         resultsRef.current?.scrollIntoView({ 
@@ -381,38 +329,17 @@ export default function GamePage() {
         });
       }, 100);
     }
-  }, [isGameResolved]);
-
-  // Update game status when resolved
-  useEffect(() => {
-    if (isGameResolved && game?.status !== "completed") {
-      // Update game status to completed
-      apiRequest("PATCH", `/api/games/${uniqueId}/status`, { 
-        status: "completed" 
-      }).catch(console.error);
-    }
-  }, [isGameResolved, game?.status, uniqueId]);
-
-  // Check for expired game after data is loaded
-  useEffect(() => {
-    if (game?.status === "inactive") {
-      toast({
-        title: "Game Expired",
-        description: "This game has expired and is no longer accessible.",
-        variant: "destructive"
-      });
-    }
-  }, [game?.status, toast]);
+  }, [isGameResolved, id]);
 
   // Clear bids when game is reset
   const clearStoredBids = useCallback(async () => {
     // Delete all bids for this game
-    const gameBids = await queryClient.fetchQuery<Bid[]>({ queryKey: [`/api/games/${uniqueId}/bids`] });
+    const gameBids = await queryClient.fetchQuery<Bid[]>({ queryKey: [`/api/games/${id}/bids`] });
     for (const bid of gameBids) {
       await apiRequest("DELETE", `/api/bids/${bid.id}`);
     }
-    queryClient.invalidateQueries({ queryKey: [`/api/games/${uniqueId}/bids`] });
-  }, [uniqueId]);
+    queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/bids`] });
+  }, [id]);
 
   // Add reset game mutation
   const resetGame = useMutation({
@@ -433,7 +360,7 @@ export default function GamePage() {
       await clearStoredBids();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/games/${uniqueId}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/games/${id}/items`] });
       toast({ 
         title: "Success", 
         description: "Game has been reset. All prices have been equalized and bids cleared." 
@@ -448,82 +375,18 @@ export default function GamePage() {
     }
   });
 
-  // Show loading state with more detailed information
-  const isLoading = isGameLoading || isItemsLoading || isParticipantsLoading || isAssignmentsLoading || isBidsLoading;
-  if (isLoading) {
-    console.log("Loading state details:", {
-      isGameLoading,
-      isItemsLoading,
-      isParticipantsLoading,
-      isAssignmentsLoading,
-      isBidsLoading,
-      uniqueId,
-      game: game || "not loaded",
-      items: items?.length || "not loaded",
-      participants: participants?.length || "not loaded"
-    });
-    return (
-      <div className="min-h-screen bg-background p-4">
-        <div className="max-w-md mx-auto">
-          <Card>
-            <CardContent className="p-8">
-              <div className="flex flex-col items-center justify-center gap-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                <p className="text-center text-muted-foreground">Loading game data...</p>
-                <p className="text-sm text-muted-foreground">This may take a few moments while we connect to the server...</p>
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p>Game: {isGameLoading ? "Loading..." : game ? "Loaded" : "Not found"}</p>
-                  <p>Items: {isItemsLoading ? "Loading..." : items ? `${items.length} loaded` : "Not found"}</p>
-                  <p>Participants: {isParticipantsLoading ? "Loading..." : participants ? `${participants.length} loaded` : "Not found"}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  // Handle API errors with more detail
+  // Handle API errors
   if (gameError || itemsError) {
-    console.error("Error details:", {
-      gameError,
-      itemsError,
-      uniqueId,
-      game: game || "not loaded",
-      items: items?.length || "not loaded"
-    });
     return (
-      <div className="min-h-screen bg-background p-4">
+      <div className="min-h-screen bg-gray-50 p-4">
         <div className="max-w-md mx-auto">
           <Card>
             <CardContent className="p-8">
               <div className="text-center text-destructive">
-                <p className="font-medium">
-                  {gameError?.status === 410 ? "Game Expired" : "Error Loading Game"}
-                </p>
+                <p className="font-medium">Error loading game</p>
                 <p className="text-sm mt-2">
-                  {gameError?.status === 410 
-                    ? "This game has expired and is no longer accessible."
-                    : "Unable to load game data. The server might be restarting, please wait a moment and try again."}
+                  {gameError?.message || itemsError?.message || "Please try again"}
                 </p>
-                <div className="flex gap-2 justify-center mt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      queryClient.invalidateQueries();
-                      window.location.reload();
-                    }}
-                  >
-                    Retry
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => window.location.href = `${baseUrl}/#/`}
-                  >
-                    Return Home
-                  </Button>
-                </div>
               </div>
             </CardContent>
           </Card>
@@ -532,25 +395,17 @@ export default function GamePage() {
     );
   }
 
-  // Check for undefined game or items
+  // Show loading state
   if (!game || !items) {
-    console.error("Missing data:", { game, items });
     return (
-      <div className="min-h-screen bg-background p-4">
+      <div className="min-h-screen bg-gray-50 p-4">
         <div className="max-w-md mx-auto">
           <Card>
             <CardContent className="p-8">
-              <div className="text-center text-destructive">
-                <p className="font-medium">Error Loading Game Data</p>
-                <p className="text-sm mt-2">Unable to load game data. Please try refreshing the page.</p>
-                <Button
-                  variant="outline"
-                  className="mt-4"
-                  onClick={() => window.location.reload()}
-                >
-                  Refresh Page
-                </Button>
+              <div className="flex justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
+              <p className="text-center mt-4">Loading game...</p>
             </CardContent>
           </Card>
         </div>
@@ -558,7 +413,6 @@ export default function GamePage() {
     );
   }
 
-  // At this point, we know game and items are defined
   const lastActive = new Date(game.lastActive);
   const timeUntilExpiry = formatDistanceToNow(lastActive, { addSuffix: true });
 
@@ -790,9 +644,9 @@ export default function GamePage() {
                               );
                               const highestBid = bids
                                 .filter(bid => bid.itemId === item.id && !bid.needsConfirmation)
-                                .sort((a, b) => Number(b.price) - Number(a.price))[0];
+                                .sort((a, b) => b.price - a.price)[0];
                               
-                              return participantBid && highestBid && Number(highestBid.price) > Number(participantBid.price);
+                              return participantBid && highestBid && highestBid.price > participantBid.price;
                             });
 
                             // Get items that need confirmation
@@ -853,7 +707,7 @@ export default function GamePage() {
                             bids.some(bid => 
                               bid.itemId === item.id && 
                               !bid.needsConfirmation &&
-                              Math.abs(Number(bid.price) - Number(item.currentPrice)) < 0.01
+                              Math.abs(bid.price - Number(item.currentPrice)) < 0.01
                             )
                           ) && (
                             <div className="text-sm text-muted-foreground">
