@@ -448,16 +448,19 @@ export default function GamePage() {
     }
   });
 
-  // Show loading state
+  // Show loading state with more detailed information
   const isLoading = isGameLoading || isItemsLoading || isParticipantsLoading || isAssignmentsLoading || isBidsLoading;
   if (isLoading) {
-    console.log("In loading state:", {
+    console.log("Loading state details:", {
       isGameLoading,
       isItemsLoading,
       isParticipantsLoading,
       isAssignmentsLoading,
       isBidsLoading,
-      uniqueId
+      uniqueId,
+      game: game || "not loaded",
+      items: items?.length || "not loaded",
+      participants: participants?.length || "not loaded"
     });
     return (
       <div className="min-h-screen bg-background p-4">
@@ -467,7 +470,12 @@ export default function GamePage() {
               <div className="flex flex-col items-center justify-center gap-4">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 <p className="text-center text-muted-foreground">Loading game data...</p>
-                <p className="text-sm text-muted-foreground">This may take a few moments...</p>
+                <p className="text-sm text-muted-foreground">This may take a few moments while we connect to the server...</p>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p>Game: {isGameLoading ? "Loading..." : game ? "Loaded" : "Not found"}</p>
+                  <p>Items: {isItemsLoading ? "Loading..." : items ? `${items.length} loaded` : "Not found"}</p>
+                  <p>Participants: {isParticipantsLoading ? "Loading..." : participants ? `${participants.length} loaded` : "Not found"}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -478,12 +486,12 @@ export default function GamePage() {
 
   // Handle API errors with more detail
   if (gameError || itemsError) {
-    console.error("Game or items error:", {
+    console.error("Error details:", {
       gameError,
       itemsError,
       uniqueId,
-      game,
-      items
+      game: game || "not loaded",
+      items: items?.length || "not loaded"
     });
     return (
       <div className="min-h-screen bg-background p-4">
@@ -497,12 +505,15 @@ export default function GamePage() {
                 <p className="text-sm mt-2">
                   {gameError?.status === 410 
                     ? "This game has expired and is no longer accessible."
-                    : gameError?.message || itemsError?.message || "Please try again"}
+                    : "Unable to load game data. The server might be restarting, please wait a moment and try again."}
                 </p>
                 <div className="flex gap-2 justify-center mt-4">
                   <Button
                     variant="outline"
-                    onClick={() => window.location.reload()}
+                    onClick={() => {
+                      queryClient.invalidateQueries();
+                      window.location.reload();
+                    }}
                   >
                     Retry
                   </Button>

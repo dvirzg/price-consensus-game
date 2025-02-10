@@ -78,7 +78,24 @@ app.use((req, res, next) => {
   }
 
   const PORT = parseInt(process.env.PORT || "5000", 10);
-  server.listen(PORT, "0.0.0.0", () => {
+  const runningServer = server.listen(PORT, "0.0.0.0", () => {
     log(`serving on port ${PORT}`);
+  });
+
+  // Graceful shutdown handling
+  process.on('SIGTERM', () => {
+    log('SIGTERM signal received. Closing HTTP server...');
+    runningServer.close(() => {
+      log('HTTP server closed');
+      process.exit(0);
+    });
+  });
+
+  process.on('SIGINT', () => {
+    log('SIGINT signal received. Closing HTTP server...');
+    runningServer.close(() => {
+      log('HTTP server closed');
+      process.exit(0);
+    });
   });
 })();

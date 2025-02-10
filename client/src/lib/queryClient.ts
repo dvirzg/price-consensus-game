@@ -24,9 +24,38 @@ function getErrorMessage(error: unknown): string {
   return 'An unknown error occurred';
 }
 
-export async function apiRequest(method: string, path: string, body?: any) {
+// Helper function to delay execution
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Helper function to retry failed requests
+const retryRequest = async <T>(
+  fn: () => Promise<T>,
+  retries = 5,
+  baseDelay = 1000,
+): Promise<T> => {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries <= 0) throw error;
+    
+    // Exponential backoff with jitter
+    const jitter = Math.random() * 200;
+    await delay(baseDelay + jitter);
+    
+    console.log(`Retrying request... ${retries} attempts remaining`);
+    return retryRequest(fn, retries - 1, baseDelay * 2);
+  }
+};
+
+export async function apiRequest(
+  method: string,
+  path: string,
+  body?: unknown
+): Promise<Response> {
+  const url = `${baseUrl}${path}`;
+  
   return retryRequest(async () => {
-    const response = await fetch(`${baseUrl}${path}`, {
+    const response = await fetch(url, {
       method,
       headers: {
         "Content-Type": "application/json",
@@ -35,27 +64,12 @@ export async function apiRequest(method: string, path: string, body?: any) {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: "An error occurred" }));
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
     }
 
     return response;
-  }, 5, 1000);
-}
-
-// Add a helper function for retrying failed requests
-export async function retryRequest<T>(
-  fn: () => Promise<T>,
-  retries = 3,
-  delay = 1000
-): Promise<T> {
-  try {
-    return await fn();
-  } catch (error) {
-    if (retries === 0) throw error;
-    await new Promise(resolve => setTimeout(resolve, delay));
-    return retryRequest(fn, retries - 1, delay * 2);
-  }
+  });
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
