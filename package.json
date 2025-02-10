@@ -10,7 +10,7 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "ts-node-dev --respawn --transpile-only server/index.ts",
     "dev:client": "cd client && npm run dev",
-    "postinstall": "cd client && npm install"
+    "postinstall": "cd client && npm install && cd .. && npm run build"
   },
   "dependencies": {
     "@types/cors": "^2.8.17",
