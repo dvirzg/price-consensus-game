@@ -62,6 +62,7 @@ export default function GamePage() {
   // Get base URL for GitHub Pages or development
   const baseUrl = import.meta.env.DEV ? '' : '/price-consensus-game';
   const gameLink = `${window.location.protocol}//${window.location.host}${baseUrl}/#/game/${uniqueId}`;
+  const apiBaseUrl = import.meta.env.DEV ? '' : '/price-consensus-game';
 
   const { data: game, error: gameError } = useQuery({
     queryKey: [`/api/games/${uniqueId}`] as const,
@@ -70,7 +71,7 @@ export default function GamePage() {
     enabled: !!uniqueId,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const response = await fetch(`/api/games/${uniqueId}`);
+      const response = await fetch(`${apiBaseUrl}/api/games/${uniqueId}`);
       if (!response.ok) {
         if (response.status === 410) {
           throw new Error("Game has expired");
@@ -86,7 +87,7 @@ export default function GamePage() {
     retry: false,
     enabled: !!game?.id,
     queryFn: async () => {
-      const response = await fetch(`/api/games/${uniqueId}/items`);
+      const response = await fetch(`${apiBaseUrl}/api/games/${uniqueId}/items`);
       if (!response.ok) {
         throw new Error("Failed to load items");
       }
@@ -99,7 +100,7 @@ export default function GamePage() {
     retry: false,
     enabled: !!game?.id,
     queryFn: async () => {
-      const response = await fetch(`/api/games/${uniqueId}/participants`);
+      const response = await fetch(`${apiBaseUrl}/api/games/${uniqueId}/participants`);
       if (!response.ok) {
         throw new Error("Failed to load participants");
       }
@@ -112,7 +113,7 @@ export default function GamePage() {
     retry: false,
     enabled: !!game?.id,
     queryFn: async () => {
-      const response = await fetch(`/api/games/${uniqueId}/assignments`);
+      const response = await fetch(`${apiBaseUrl}/api/games/${uniqueId}/assignments`);
       if (!response.ok) {
         throw new Error("Failed to load assignments");
       }
@@ -125,7 +126,7 @@ export default function GamePage() {
     retry: false,
     enabled: !!game?.id,
     queryFn: async () => {
-      const response = await fetch(`/api/games/${uniqueId}/bids`);
+      const response = await fetch(`${apiBaseUrl}/api/games/${uniqueId}/bids`);
       if (!response.ok) {
         throw new Error("Failed to load bids");
       }
@@ -144,7 +145,7 @@ export default function GamePage() {
 
   const joinGame = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", `/api/games/${uniqueId}/participants`, {
+      const response = await apiRequest("POST", `${apiBaseUrl}/api/games/${uniqueId}/participants`, {
         name,
         email,
       });
@@ -164,7 +165,7 @@ export default function GamePage() {
     mutationFn: async (newBid: { itemId: number; price: number; needsConfirmation: boolean }) => {
       if (!currentParticipant || !uniqueId) return;
       
-      const response = await apiRequest("POST", `/api/games/${uniqueId}/bids`, {
+      const response = await apiRequest("POST", `${apiBaseUrl}/api/games/${uniqueId}/bids`, {
         ...newBid,
         participantId: currentParticipant.id,
         price: newBid.price.toString(),
@@ -185,7 +186,7 @@ export default function GamePage() {
 
   const updateBid = useMutation({
     mutationFn: async ({ bidId, price, needsConfirmation }: { bidId: number; price: number; needsConfirmation: boolean }) => {
-      await apiRequest("PATCH", `/api/bids/${bidId}`, { 
+      await apiRequest("PATCH", `${apiBaseUrl}/api/bids/${bidId}`, { 
         price: price.toString(),
         needsConfirmation 
       });
@@ -204,7 +205,7 @@ export default function GamePage() {
 
   const updatePrice = useMutation({
     mutationFn: async ({ itemId, price, isMainBid = false }: { itemId: number; price: number; isMainBid?: boolean }) => {
-      await apiRequest("PATCH", `/api/items/${itemId}/price`, { price: price.toString() });
+      await apiRequest("PATCH", `${apiBaseUrl}/api/items/${itemId}/price`, { price: price.toString() });
       
       if (currentParticipant && isMainBid) {
         // Create or update bid for the main item
@@ -388,7 +389,7 @@ export default function GamePage() {
   useEffect(() => {
     if (isGameResolved && game?.status !== "completed") {
       // Update game status to completed
-      apiRequest("PATCH", `/api/games/${uniqueId}/status`, { 
+      apiRequest("PATCH", `${apiBaseUrl}/api/games/${uniqueId}/status`, { 
         status: "completed" 
       }).catch(console.error);
     }
@@ -410,7 +411,7 @@ export default function GamePage() {
     // Delete all bids for this game
     const gameBids = await queryClient.fetchQuery<Bid[]>({ queryKey: [`/api/games/${uniqueId}/bids`] });
     for (const bid of gameBids) {
-      await apiRequest("DELETE", `/api/bids/${bid.id}`);
+      await apiRequest("DELETE", `${apiBaseUrl}/api/bids/${bid.id}`);
     }
     queryClient.invalidateQueries({ queryKey: [`/api/games/${uniqueId}/bids`] });
   }, [uniqueId]);
@@ -425,7 +426,7 @@ export default function GamePage() {
       
       // Update all items with equal price
       for (const item of items) {
-        await apiRequest("PATCH", `/api/items/${item.id}/price`, { 
+        await apiRequest("PATCH", `${apiBaseUrl}/api/items/${item.id}/price`, { 
           price: equalPrice 
         });
       }

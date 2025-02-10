@@ -1,4 +1,4 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -23,28 +23,35 @@ function getErrorMessage(error: unknown): string {
   return 'An unknown error occurred';
 }
 
-export async function apiRequest(
-  method: string,
-  url: string,
-  data?: unknown | undefined,
-): Promise<Response> {
-  const fullUrl = `${API_URL}${url}`;
-  console.log(`Making ${method} request to ${fullUrl}`, data);
-  
-  try {
-    const res = await fetch(fullUrl, {
-      method,
-      headers: data ? { "Content-Type": "application/json" } : {},
-      body: data ? JSON.stringify(data) : undefined,
-      credentials: "include",
-    });
+const apiBaseUrl = import.meta.env.DEV ? '' : '/price-consensus-game';
 
-    await throwIfResNotOk(res);
-    return res;
-  } catch (error) {
-    console.error('API Request failed:', error);
-    throw new Error(getErrorMessage(error));
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+});
+
+export async function apiRequest(method: string, path: string, body?: any) {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: "An error occurred" }));
+    throw new Error(error.message || "Failed to make request");
   }
+
+  return response;
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -72,18 +79,3 @@ export const getQueryFn: <T>(options: {
       throw new Error(getErrorMessage(error));
     }
   };
-
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
-      retry: false,
-    },
-    mutations: {
-      retry: false,
-    },
-  },
-});
