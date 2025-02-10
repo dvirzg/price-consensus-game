@@ -232,14 +232,15 @@ export default function GamePage() {
           throw new Error("Invalid price value");
         }
 
+        // First update the item's price
         await apiRequest("PATCH", `/api/items/${itemId}/price`, { price: numericPrice });
         
         if (currentParticipant && isMainBid) {
-          const existingBid = bids.find(bid => 
-            bid.itemId === itemId && 
-            bid.participantId === currentParticipant.id
-          );
-
+          // Get all bids for this item
+          const itemBids = bids.filter(bid => bid.itemId === itemId);
+          
+          // Update or create the current participant's bid
+          const existingBid = itemBids.find(bid => bid.participantId === currentParticipant.id);
           if (existingBid) {
             await updateBid.mutateAsync({
               bidId: existingBid.id,
@@ -254,18 +255,18 @@ export default function GamePage() {
             });
           }
 
-          const affectedBids = bids.filter(bid => 
-            bid.itemId === itemId && 
-            bid.participantId !== currentParticipant.id &&
-            Number(bid.price) < numericPrice
-          );
-
-          for (const bid of affectedBids) {
-            await updateBid.mutateAsync({
-              bidId: bid.id,
-              price: Number(bid.price),
-              needsConfirmation: true
-            });
+          // Handle other participants' bids
+          const otherBids = itemBids.filter(bid => bid.participantId !== currentParticipant.id);
+          for (const bid of otherBids) {
+            const bidPrice = Number(bid.price);
+            // If the new price is higher than their bid, they need to confirm
+            if (numericPrice > bidPrice) {
+              await updateBid.mutateAsync({
+                bidId: bid.id,
+                price: bidPrice, // Keep their original bid price
+                needsConfirmation: true
+              });
+            }
           }
         }
       } catch (error) {
@@ -312,7 +313,7 @@ export default function GamePage() {
         });
       } else {
         await createBid.mutateAsync({
-          itemId,
+        itemId,
           price: Number(item.currentPrice),
           needsConfirmation: false
         });
