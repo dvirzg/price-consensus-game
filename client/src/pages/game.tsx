@@ -155,66 +155,104 @@ export default function GamePage() {
 
   // Store current participant in localStorage to persist across refreshes
   useEffect(() => {
-    const storedParticipant = localStorage.getItem('currentParticipant');
-    if (storedParticipant && participants) {
-      const parsed = JSON.parse(storedParticipant);
-      const found = participants.find(p => p.id === parsed.id);
-      if (found) {
-        setCurrentParticipant(found);
+    if (!participants) return;
+    
+    try {
+      const storedParticipant = localStorage.getItem('currentParticipant');
+      if (storedParticipant) {
+        const parsed = JSON.parse(storedParticipant);
+        const found = participants.find(p => p.id === parsed.id);
+        if (found) {
+          setCurrentParticipant(found);
+        } else {
+          // If participant not found, clear storage
+          localStorage.removeItem('currentParticipant');
+          setCurrentParticipant(null);
+        }
       }
+    } catch (error) {
+      console.error('Error loading participant from storage:', error);
+      localStorage.removeItem('currentParticipant');
+      setCurrentParticipant(null);
     }
   }, [participants]);
 
   // Update localStorage when participant changes
   useEffect(() => {
-    if (currentParticipant) {
-      localStorage.setItem('currentParticipant', JSON.stringify(currentParticipant));
+    try {
+      if (currentParticipant) {
+        localStorage.setItem('currentParticipant', JSON.stringify(currentParticipant));
+      } else {
+        localStorage.removeItem('currentParticipant');
+      }
+    } catch (error) {
+      console.error('Error saving participant to storage:', error);
     }
   }, [currentParticipant]);
 
+  // Handle participant selection
+  const handleParticipantSelect = (participant: Participant) => {
+    try {
+      setCurrentParticipant(participant);
+      localStorage.setItem('currentParticipant', JSON.stringify(participant));
+    } catch (error) {
+      console.error('Error setting participant:', error);
+      toast({
+        title: "Error",
+        description: "Failed to select participant",
+        variant: "destructive"
+      });
+    }
+  };
+
   const updatePrice = useMutation({
     mutationFn: async ({ itemId, price, isMainBid = false }: { itemId: number; price: number; isMainBid?: boolean }) => {
-      // Convert price to number explicitly
-      const numericPrice = Number(price);
-      if (isNaN(numericPrice)) {
-        throw new Error("Invalid price value");
-      }
-
-      await apiRequest("PATCH", `/api/items/${itemId}/price`, { price: numericPrice });
-      
-      if (currentParticipant && isMainBid) {
-        const existingBid = bids.find(bid => 
-          bid.itemId === itemId && 
-          bid.participantId === currentParticipant.id
-        );
-
-        if (existingBid) {
-          await updateBid.mutateAsync({
-            bidId: existingBid.id,
-            price: numericPrice,
-            needsConfirmation: false
-          });
-        } else {
-          await createBid.mutateAsync({
-            itemId,
-            price: numericPrice,
-            needsConfirmation: false
-          });
+      try {
+        // Convert price to number explicitly
+        const numericPrice = Number(price);
+        if (isNaN(numericPrice)) {
+          throw new Error("Invalid price value");
         }
 
-        const affectedBids = bids.filter(bid => 
-          bid.itemId === itemId && 
-          bid.participantId !== currentParticipant.id &&
-          Number(bid.price) < numericPrice
-        );
+        await apiRequest("PATCH", `/api/items/${itemId}/price`, { price: numericPrice });
+        
+        if (currentParticipant && isMainBid) {
+          const existingBid = bids.find(bid => 
+            bid.itemId === itemId && 
+            bid.participantId === currentParticipant.id
+          );
 
-        for (const bid of affectedBids) {
-          await updateBid.mutateAsync({
-            bidId: bid.id,
-            price: Number(bid.price),
-            needsConfirmation: true
-          });
+          if (existingBid) {
+            await updateBid.mutateAsync({
+              bidId: existingBid.id,
+              price: numericPrice,
+              needsConfirmation: false
+            });
+          } else {
+            await createBid.mutateAsync({
+              itemId,
+              price: numericPrice,
+              needsConfirmation: false
+            });
+          }
+
+          const affectedBids = bids.filter(bid => 
+            bid.itemId === itemId && 
+            bid.participantId !== currentParticipant.id &&
+            Number(bid.price) < numericPrice
+          );
+
+          for (const bid of affectedBids) {
+            await updateBid.mutateAsync({
+              bidId: bid.id,
+              price: Number(bid.price),
+              needsConfirmation: true
+            });
+          }
         }
+      } catch (error) {
+        console.error('Error updating price:', error);
+        throw error;
       }
     },
     onSuccess: () => {
@@ -225,9 +263,10 @@ export default function GamePage() {
       setPreviewPrices({});
     },
     onError: (error) => {
+      console.error('Error in updatePrice mutation:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to update price",
         variant: "destructive"
       });
       setEditingItemId(null);
@@ -711,9 +750,9 @@ export default function GamePage() {
                               );
                               const highestBid = bids
                                 .filter(bid => bid.itemId === item.id && !bid.needsConfirmation)
-                                .sort((a, b) => b.price - a.price)[0];
+                                .sort((a, b) => Number(b.price) - Number(a.price))[0];
                               
-                              return participantBid && highestBid && highestBid.price > participantBid.price;
+                              return participantBid && highestBid && Number(highestBid.price) > Number(participantBid.price);
                             });
 
                             // Get items that need confirmation
@@ -774,7 +813,7 @@ export default function GamePage() {
                             bids.some(bid => 
                               bid.itemId === item.id && 
                               !bid.needsConfirmation &&
-                              Math.abs(bid.price - Number(item.currentPrice)) < 0.01
+                              Math.abs(Number(bid.price) - Number(item.currentPrice)) < 0.01
                             )
                           ) && (
                             <div className="text-sm text-muted-foreground">
@@ -892,7 +931,7 @@ export default function GamePage() {
                         key={participant.id}
                         variant={currentParticipant?.id === participant.id ? "default" : "ghost"}
                         className={`w-full justify-start h-9 px-3 ${currentParticipant?.id === participant.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
-                        onClick={() => setCurrentParticipant(participant)}
+                        onClick={() => handleParticipantSelect(participant)}
                       >
                         <span className="truncate">
                           {participant.name}
@@ -919,7 +958,7 @@ export default function GamePage() {
                     bid.participantId === currentParticipant.id
                   )!) : null : null;
                 const highestBid = itemBids.reduce((highest, current) => 
-                  !highest || current.price > highest.price ? current : highest
+                  !highest || Number(current.price) > Number(highest.price) ? current : highest
                 , null as { userId: number; userName: string; price: number; needsConfirmation: boolean } | null);
 
                 return (
@@ -974,26 +1013,34 @@ export default function GamePage() {
                       <Button
                         onClick={async () => {
                           if (!editingItemId) return;
+                          try {
+                            // Update the main bid item first
+                            const mainBidPrice = previewPrices[editingItemId];
+                            await updatePrice.mutateAsync({ 
+                              itemId: editingItemId, 
+                              price: mainBidPrice,
+                              isMainBid: true
+                            });
 
-                          // Update the main bid item first
-                          const mainBidPrice = previewPrices[editingItemId];
-                          await updatePrice.mutate({ 
-                            itemId: editingItemId, 
-                            price: mainBidPrice,
-                            isMainBid: true
-                          });
+                            // Then update other items' prices without creating interests
+                            const otherUpdates = Object.entries(previewPrices)
+                              .filter(([itemId]) => parseInt(itemId) !== editingItemId)
+                              .map(([itemId, price]) => ({
+                                itemId: parseInt(itemId),
+                                price,
+                                isMainBid: false
+                              }));
 
-                          // Then update other items' prices without creating interests
-                          const otherUpdates = Object.entries(previewPrices)
-                            .filter(([itemId]) => parseInt(itemId) !== editingItemId)
-                            .map(([itemId, price]) => ({
-                              itemId: parseInt(itemId),
-                              price,
-                              isMainBid: false
-                            }));
-
-                          for (const update of otherUpdates) {
-                            await updatePrice.mutate(update);
+                            for (const update of otherUpdates) {
+                              await updatePrice.mutateAsync(update);
+                            }
+                          } catch (error) {
+                            console.error('Error submitting bid:', error);
+                            toast({
+                              title: "Error",
+                              description: "Failed to submit bid. Please try again.",
+                              variant: "destructive"
+                            });
                           }
                         }}
                       >
